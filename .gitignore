@@ -1,0 +1,85 @@
+# Miscellaneous
+*.class
+*.log
+*.pyc
+*.swp
+.DS_Store
+.atom/
+.build/
+.buildlog/
+.history
+.svn/
+.swiftpm/
+migrate_working_dir/
+
+# IntelliJ related
+*.iml
+*.ipr
+*.iws
+.idea/
+
+# The .vscode folder contains launch configuration and tasks you configure in
+# VS Code which you may wish to be included in version control, so this line
+# is commented out by default.
+#.vscode/
+
+# Flutter/Dart/Pub related
+**/doc/api/
+**/ios/Flutter/.last_build_id
+.dart_tool/
+.flutter-plugins-dependencies
+.pub-cache/
+.pub/
+/build/
+/coverage/
+
+# Symbolication related
+app.*.symbols
+
+# Obfuscation related
+app.*.map.json
+
+# Android Studio will place build artifacts here
+/android/app/debug
+/android/app/profile
+/android/app/release
+
+# FVM Version Cache
+.fvm/
+
+# ==========================================
+# Flutter / Dart 関連
+# ==========================================
+.packages
+build/
+# アプリ開発ではパッケージバージョンを固定するため pubspec.lock は【コミットする】のが一般的です。
+# したがってここに pubspec.lock は書きません。
+
+# ==========================================
+# FVM (Flutter Version Management)
+# ==========================================
+# SDK本体は非常に重くローカル依存なので無視する
+.fvm/flutter_sdk
+# ※ .fvm/fvm_config.json はチームでバージョンを共有するために【コミットします】。
+
+# VS Code (他のチームメンバーがVS Codeを使う場合を考慮)
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+# ※チームで共有したい設定ファイルだけ除外を取り消す（!）
+
+# ==========================================
+# OS 関連
+# ==========================================
+Thumbs.db
+
+# ==========================================
+# セキュリティ・鍵・環境変数 (将来のため)
+# ==========================================
+# APIキーやFirebaseの設定ファイル、署名鍵などは絶対にコミットしない
+.env
+*.jks
+*.keystore
+key.properties
+android/app/google-services.json
+ios/Runner/GoogleService-Info.plist
