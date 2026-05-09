@@ -6,21 +6,20 @@
 
 ## FVMのインストール
 
-* **macOS / Linux (Homebrew):**
-* brew tap leoafarias/fvm && brew install fvm
+**macOS / Linux (Homebrew)**
+brew tap leoafarias/fvm && brew install fvm
 
-* Windows (Chocolatey):
-* choco install fvm
+**Windows (Chocolatey)**
+choco install fvm
 
-* ・Dart pub を使用する場合:
-* dart pub global activate fvm
+**Dart pub を使用する場合**
+dart pub global activate fvm
 
-* **Windowsで「fvmが認識されない」エラーが出る場合**
-> 環境変数の `Path` に以下を追加して、PCを再起動（またはターミナルを再起動）してください。
-> `C:\Users\あなたのユーザー名\AppData\Local\Pub\Cache\bin`
->
-> 
-> ### ② プロジェクトの初期化
+**Windowsで「fvmが認識されない」エラーが出る場合**
+環境変数の `Path` に以下を追加して、PCを再起動（またはターミナルを再起動）してください。
+`C:\Users\あなたのユーザー名\AppData\Local\Pub\Cache\bin`
+
+### ② プロジェクトの初期化
 リポジトリをクローンした後、以下のコマンドで環境を整えます。
 
 # プロジェクトディレクトリへ移動
