@@ -2,6 +2,9 @@ import 'dart:convert';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:ui';
+import 'widgets/remaining_time.dart'; // 既存のウィジェット
+import 'dart:ui';
 
 void main() {
   runApp(const MyApp());
@@ -10,571 +13,398 @@ void main() {
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
-  @override
-  Widget build(BuildContext context) {
-    return const MaterialApp(
-      debugShowCheckedModeBanner: false,
-      home: HomePage(),
-    );
-  }
+ @override
+Widget build(BuildContext context) {
+  return MaterialApp(
+    title: 'DO IT',
+    debugShowCheckedModeBanner: false,
+
+    theme: ThemeData(
+      useMaterial3: true,
+      brightness: Brightness.dark,
+      fontFamily: 'Noto Sans JP',
+    ),
+
+    home: const MainContainer(),
+  );
+}
 }
 
-// ================= HOME =================
+// ================= ページ管理 =================
 
-class HomePage extends StatefulWidget {
-  const HomePage({super.key});
+class MainContainer extends StatefulWidget {
+  const MainContainer({super.key});
 
   @override
-  State<HomePage> createState() => _HomePageState();
+  State<MainContainer> createState() => _MainContainerState();
 }
 
-class _HomePageState extends State<HomePage> {
-  // AI風おすすめ
-  final List<Map<String, dynamic>> aiSuggestions = [
-    {"title": "5分だけ机を片付ける", "reason": "小さい行動から始めると集中しやすいです"},
-    {"title": "軽くストレッチする", "reason": "体を動かすと気分転換になります"},
-    {"title": "水を飲む", "reason": "集中力低下を防ぎます"},
-    {"title": "10分だけ課題", "reason": "最初の10分が一番大事です"},
-    {"title": "外を少し歩く", "reason": "脳がリフレッシュされます"},
-    {"title": "今日やることを3つ書く", "reason": "頭の整理ができます"},
-    {"title": "深呼吸を30秒", "reason": "焦りを落ち着かせます"},
+class _MainContainerState extends State<MainContainer> {
+  int _currentIndex = 0;
+
+  final List<Widget> _pages = [
+    const MainScreen(),
+    const Scaffold(
+      body: Center(
+        child: Text("Tasks"),
+      ),
+    ),
+    const Scaffold(
+      body: Center(
+        child: Text("Focus"),
+      ),
+    ),
+    const Scaffold(
+      body: Center(
+        child: Text("Settings"),
+      ),
+    ),
   ];
 
-  List<Map<String, dynamic>> userTasks = [];
+  @override
+  Widget build(BuildContext context) {
+    final isDark =
+        DateTime.now().hour >= 17 ||
+        DateTime.now().hour < 5;
 
-  bool showRecommendations = false;
+    return Scaffold(
+      extendBody: true,
 
-  String selectedViewDate = "";
+      body: IndexedStack(
+        index: _currentIndex,
+        children: _pages,
+      ),
 
-  // AI提案
-  Map<String, dynamic>? currentSuggestion;
+      bottomNavigationBar: Container(
+        margin: const EdgeInsets.fromLTRB(
+          40,
+          0,
+          40,
+          24,
+        ),
+
+        decoration: BoxDecoration(
+          color: (isDark
+                  ? Colors.white
+                  : Colors.black)
+              .withValues(alpha: 0.05),
+
+          borderRadius: BorderRadius.circular(30),
+
+          border: Border.all(
+            color: (isDark
+                    ? Colors.white
+                    : Colors.black)
+                .withValues(alpha: 0.1),
+
+            width: 0.5,
+          ),
+        ),
+
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(30),
+
+          child: BackdropFilter(
+            filter: ImageFilter.blur(
+              sigmaX: 10,
+              sigmaY: 10,
+            ),
+
+            child: BottomNavigationBar(
+              currentIndex: _currentIndex,
+
+              onTap: (index) {
+                setState(() {
+                  _currentIndex = index;
+                });
+              },
+
+              type: BottomNavigationBarType.fixed,
+
+              backgroundColor: Colors.transparent,
+
+              elevation: 0,
+
+              showSelectedLabels: false,
+              showUnselectedLabels: false,
+
+              selectedItemColor: isDark
+                  ? Colors.white
+                  : const Color(0xFF151B54),
+
+              unselectedItemColor:
+                  (isDark
+                          ? Colors.white
+                          : Colors.black)
+                      .withValues(alpha: 0.3),
+
+              items: const [
+                BottomNavigationBarItem(
+                  icon: Icon(Icons.home_outlined),
+                  label: "",
+                ),
+
+                BottomNavigationBarItem(
+                  icon: Icon(Icons.check_circle_outline),
+                  label: "",
+                ),
+
+                BottomNavigationBarItem(
+                  icon: Icon(Icons.timer_outlined),
+                  label: "",
+                ),
+
+                BottomNavigationBarItem(
+                  icon: Icon(Icons.settings_outlined),
+                  label: "",
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ================= MAIN SCREEN =================
+
+class MainScreen extends StatefulWidget {
+  const MainScreen({super.key});
+
+  @override
+  State<MainScreen> createState() =>
+      _MainScreenState();
+}
+
+class _MainScreenState extends State<MainScreen>
+    with TickerProviderStateMixin {
+
+  late AnimationController _bgController;
+  late AnimationController _floatController;
 
   @override
   void initState() {
     super.initState();
 
-    final now = DateTime.now();
+    _bgController = AnimationController(
+      duration: const Duration(seconds: 15),
+      vsync: this,
+    )..repeat(reverse: true);
 
-    selectedViewDate =
-        "${now.year}-${now.month.toString().padLeft(2, "0")}-${now.day.toString().padLeft(2, "0")}";
-
-    loadTasks();
-  }
-
-  Future<void> loadTasks() async {
-    final prefs = await SharedPreferences.getInstance();
-
-    final data = prefs.getString("tasks");
-
-    if (data != null) {
-      setState(() {
-        userTasks = List<Map<String, dynamic>>.from(jsonDecode(data));
-      });
-    }
-  }
-
-  Future<void> selectViewDate() async {
-    final pickedDate = await showDatePicker(
-      context: context,
-      initialDate: DateTime.now(),
-      firstDate: DateTime(2020),
-      lastDate: DateTime(2100),
-    );
-
-    if (pickedDate != null) {
-      setState(() {
-        selectedViewDate =
-            "${pickedDate.year}-${pickedDate.month.toString().padLeft(2, "0")}-${pickedDate.day.toString().padLeft(2, "0")}";
-      });
-    }
+    _floatController = AnimationController(
+      duration: const Duration(seconds: 10),
+      vsync: this,
+    )..repeat(reverse: true);
   }
 
   @override
-  Widget build(BuildContext context) {
-    final visibleTasks = userTasks.where((task) {
-      return task["fixed"] == true || task["date"] == selectedViewDate;
-    }).toList();
+  void dispose() {
+    _bgController.dispose();
+    _floatController.dispose();
 
-    final noTasks = visibleTasks.isEmpty;
+    super.dispose();
+  }
+}
+ @override
+void initState() {
+  super.initState();
 
-    return Scaffold(
-      backgroundColor: Colors.grey[200],
+  _bgController = AnimationController(
+    duration: const Duration(seconds: 15),
+    vsync: this,
+  )..repeat(reverse: true);
 
-      appBar: AppBar(
-        title: const Text("残り時間アプリ"),
+  _floatController = AnimationController(
+    duration: const Duration(seconds: 10),
+    vsync: this,
+  )..repeat(reverse: true);
+}
 
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.calendar_month),
-            onPressed: selectViewDate,
+@override
+void dispose() {
+  _bgController.dispose();
+  _floatController.dispose();
+
+  super.dispose();
+}
+
+@override
+Widget build(BuildContext context) {
+  final hour = DateTime.now().hour;
+
+  final isDark =
+      hour >= 17 || hour < 5;
+
+  List<Color> themeStart;
+  List<Color> themeEnd;
+
+  if (hour >= 5 && hour < 12) {
+    themeStart = [
+      const Color(0xFFF4F7F9),
+      const Color(0xFFE2ECF4),
+    ];
+
+    themeEnd = [
+      const Color(0xFFFBF4EC),
+      const Color(0xFFF3E1D3),
+    ];
+  } else if (hour >= 12 && hour < 17) {
+    themeStart = [
+      const Color(0xFFE6F6FF),
+      const Color(0xFFCBEBFC),
+    ];
+
+    themeEnd = [
+      const Color(0xFFEDF7ED),
+      const Color(0xFFD0EBD2),
+    ];
+  } else {
+    themeStart = [
+      const Color(0xFF1E1E2E),
+      const Color(0xFF2A2A3D),
+    ];
+
+    themeEnd = [
+      const Color(0xFF252538),
+      const Color(0xFF1A1A2E),
+    ];
+  }
+
+  return AnimatedBuilder(
+    animation: Listenable.merge([
+      _bgController,
+      _floatController,
+    ]),
+
+    builder: (context, child) {
+      final t = _bgController.value;
+
+      return Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+
+            colors: [
+              Color.lerp(
+                themeStart[0],
+                themeEnd[0],
+                t,
+              )!,
+
+              Color.lerp(
+                themeStart[1],
+                themeEnd[1],
+                t,
+              )!,
+            ],
           ),
+        ),
 
-          // 設定
-          IconButton(
-            icon: const Icon(Icons.settings),
-            onPressed: () async {
-              await Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => SettingsPage(userTasks: userTasks),
-                ),
-              );
+        child: child,
+      );
+    },
 
-              loadTasks();
-            },
-          ),
+    child: Stack(
+      children: [
+        Positioned(
+          bottom: 10,
+          left: 0,
+          right: 0,
 
-          // 懺悔室
-          IconButton(
-            icon: const Icon(Icons.psychology),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const ConfessionPage()),
-              );
-            },
-          ),
-        ],
-      ),
-
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
-
-        child: Column(
-          children: [
-            const SizedBox(height: 20),
-
-            // ===== DO IT =====
-            ElevatedButton(
-              onPressed: () {
-                final random = Random();
-
-                setState(() {
-                  showRecommendations = true;
-
-                  currentSuggestion =
-                      aiSuggestions[random.nextInt(aiSuggestions.length)];
-                });
-
-                ScaffoldMessenger.of(
-                  context,
-                ).showSnackBar(const SnackBar(content: Text("AIが行動を提案しました")));
-              },
-
-              style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 40,
-                  vertical: 20,
-                ),
+          child: Center(
+            child: ImageFiltered(
+              imageFilter: ImageFilter.blur(
+                sigmaX: 5,
+                sigmaY: 5,
               ),
 
-              child: const Text(
-                "DO IT",
+              child: Text(
+                'DO IT',
+
                 style: TextStyle(
-                  fontSize: 40,
+                  fontSize: 180,
                   fontWeight: FontWeight.w900,
-                  letterSpacing: 5,
+                  letterSpacing: 20,
+
+                  color: isDark
+                      ? Colors.white.withValues(alpha: 0.15)
+                      : Colors.indigo.shade900.withValues(alpha: 0.08),
                 ),
               ),
             ),
+          ),
+        ),
 
-            const SizedBox(height: 30),
-
-            // ===== AI提案 =====
-            if (showRecommendations && noTasks && currentSuggestion != null)
-              Card(
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(20),
+        SafeArea(
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  vertical: 24,
                 ),
 
-                elevation: 5,
+                child: Column(
+                  children: [
+                    Text(
+                      'D O  I T',
 
-                child: Padding(
-                  padding: const EdgeInsets.all(20),
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 8,
 
-                  child: Column(
-                    children: [
-                      const Text(
-                        "AI提案",
-                        style: TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
-                        ),
+                        color: isDark
+                            ? Colors.white.withValues(alpha: 0.35)
+                            : Colors.black.withValues(alpha: 0.4),
+                      ),
+                    ),
+
+                    const SizedBox(height: 6),
+
+                    Text(
+                      DateTime.now()
+                          .toString()
+                          .substring(0, 10)
+                          .replaceAll('-', '.'),
+
+                      style: TextStyle(
+                        fontSize: 9,
+                        fontWeight: FontWeight.w300,
+                        letterSpacing: 4,
+
+                        color: isDark
+                            ? Colors.white.withValues(alpha: 0.2)
+                            : Colors.black.withValues(alpha: 0.25),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              const Expanded(
+                child: Center(
+                  child: SingleChildScrollView(
+                    physics: BouncingScrollPhysics(),
+
+                    child: Padding(
+                      padding: EdgeInsets.only(
+                        bottom: 40,
                       ),
 
-                      const SizedBox(height: 20),
-
-                      Text(
-                        currentSuggestion!["title"],
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          fontSize: 28,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-
-                      const SizedBox(height: 15),
-
-                      Text(
-                        currentSuggestion!["reason"],
-                        textAlign: TextAlign.center,
-                        style: TextStyle(fontSize: 16, color: Colors.grey[700]),
-                      ),
-                    ],
+                      child: RemainingTimeWidget(),
+                    ),
                   ),
                 ),
               ),
-
-            const SizedBox(height: 30),
-
-            // ===== タスク一覧 =====
-            if (visibleTasks.isNotEmpty)
-              const Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  "今日のタスク",
-                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-                ),
-              ),
-
-            const SizedBox(height: 15),
-
-            ...visibleTasks.map((task) {
-              return Card(
-                margin: const EdgeInsets.only(bottom: 12),
-
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(15),
-                ),
-
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-
-                          children: [
-                            Text(
-                              task["name"],
-                              style: const TextStyle(
-                                fontSize: 22,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-
-                            const SizedBox(height: 6),
-
-                            Text(
-                              "${task["minutes"]}分",
-                              style: TextStyle(
-                                fontSize: 16,
-                                color: Colors.grey[700],
-                              ),
-                            ),
-
-                            if (task["fixed"])
-                              Padding(
-                                padding: const EdgeInsets.only(top: 6),
-
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 10,
-                                    vertical: 4,
-                                  ),
-
-                                  decoration: BoxDecoration(
-                                    color: Colors.blue[100],
-                                    borderRadius: BorderRadius.circular(20),
-                                  ),
-
-                                  child: const Text("固定タスク"),
-                                ),
-                              ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            }),
-          ],
+            ],
+          ),
         ),
-      ),
-    );
-  }
+      ],
+    ),
+  );
 }
-
-// ================= SETTINGS =================
-
-class SettingsPage extends StatefulWidget {
-  final List<Map<String, dynamic>> userTasks;
-
-  const SettingsPage({super.key, required this.userTasks});
-
-  @override
-  State<SettingsPage> createState() => _SettingsPageState();
-}
-
-class _SettingsPageState extends State<SettingsPage> {
-  final taskNameController = TextEditingController();
-
-  final taskMinutesController = TextEditingController();
-
-  bool fixedTask = false;
-
-  String selectedTaskDate = "";
-
-  List<Map<String, dynamic>> tasks = [];
-
-  @override
-  void initState() {
-    super.initState();
-
-    tasks = widget.userTasks;
-
-    final now = DateTime.now();
-
-    selectedTaskDate =
-        "${now.year}-${now.month.toString().padLeft(2, "0")}-${now.day.toString().padLeft(2, "0")}";
-  }
-
-  Future<void> saveTasks() async {
-    final prefs = await SharedPreferences.getInstance();
-
-    await prefs.setString("tasks", jsonEncode(tasks));
-  }
-
-  Future<void> selectTaskDate() async {
-    final pickedDate = await showDatePicker(
-      context: context,
-      initialDate: DateTime.now(),
-      firstDate: DateTime(2020),
-      lastDate: DateTime(2100),
-    );
-
-    if (pickedDate != null) {
-      setState(() {
-        selectedTaskDate =
-            "${pickedDate.year}-${pickedDate.month.toString().padLeft(2, "0")}-${pickedDate.day.toString().padLeft(2, "0")}";
-      });
-    }
-  }
-
-  void addTask() {
-    final name = taskNameController.text.trim();
-
-    final minutes = taskMinutesController.text.trim();
-
-    if (name.isEmpty || minutes.isEmpty) {
-      return;
-    }
-
-    setState(() {
-      tasks.add({
-        "name": name,
-        "minutes": int.parse(minutes),
-        "date": selectedTaskDate,
-        "fixed": fixedTask,
-      });
-    });
-
-    saveTasks();
-
-    taskNameController.clear();
-    taskMinutesController.clear();
-
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text("タスク追加完了")));
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.grey[200],
-
-      appBar: AppBar(title: const Text("設定")),
-
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
-
-        child: Column(
-          children: [
-            const Text(
-              "タスク登録",
-              style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
-            ),
-
-            const SizedBox(height: 20),
-
-            TextField(
-              controller: taskNameController,
-              decoration: const InputDecoration(
-                labelText: "タスク名",
-                border: OutlineInputBorder(),
-                filled: true,
-                fillColor: Colors.white,
-              ),
-            ),
-
-            const SizedBox(height: 15),
-
-            TextField(
-              controller: taskMinutesController,
-              keyboardType: TextInputType.number,
-
-              decoration: const InputDecoration(
-                labelText: "想定時間（分）",
-                border: OutlineInputBorder(),
-                filled: true,
-                fillColor: Colors.white,
-              ),
-            ),
-
-            const SizedBox(height: 15),
-
-            ListTile(
-              tileColor: Colors.white,
-
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-
-              title: const Text("タスクの日付"),
-
-              subtitle: Text(selectedTaskDate),
-
-              trailing: const Icon(Icons.calendar_month),
-
-              onTap: selectTaskDate,
-            ),
-
-            const SizedBox(height: 10),
-
-            CheckboxListTile(
-              value: fixedTask,
-
-              title: const Text("固定タスク"),
-
-              tileColor: Colors.white,
-
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-
-              onChanged: (value) {
-                setState(() {
-                  fixedTask = value!;
-                });
-              },
-            ),
-
-            const SizedBox(height: 15),
-
-            ElevatedButton(onPressed: addTask, child: const Text("タスク追加")),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// ================= 懺悔室 =================
-
-class ConfessionPage extends StatefulWidget {
-  const ConfessionPage({super.key});
-
-  @override
-  State<ConfessionPage> createState() => _ConfessionPageState();
-}
-
-class _ConfessionPageState extends State<ConfessionPage> {
-  final TextEditingController controller = TextEditingController();
-
-  String message = "";
-
-  void confess() {
-    setState(() {
-      message = controller.text;
-    });
-
-    controller.clear();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.black,
-
-      appBar: AppBar(backgroundColor: Colors.black, title: const Text("懺悔室")),
-
-      body: Padding(
-        padding: const EdgeInsets.all(20),
-
-        child: Column(
-          children: [
-            const SizedBox(height: 30),
-
-            const Text(
-              "ここに全部置いていけ",
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 28,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-
-            const SizedBox(height: 30),
-
-            TextField(
-              controller: controller,
-              maxLines: 5,
-
-              style: const TextStyle(color: Colors.white),
-
-              decoration: InputDecoration(
-                hintText: "懺悔を書く",
-                hintStyle: const TextStyle(color: Colors.grey),
-
-                filled: true,
-                fillColor: Colors.grey[900],
-
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(15),
-                ),
-              ),
-            ),
-
-            const SizedBox(height: 20),
-
-            ElevatedButton(onPressed: confess, child: const Text("浄化する")),
-
-            const SizedBox(height: 30),
-
-            if (message.isNotEmpty)
-              Container(
-                width: double.infinity,
-
-                padding: const EdgeInsets.all(20),
-
-                decoration: BoxDecoration(
-                  color: Colors.white10,
-                  borderRadius: BorderRadius.circular(20),
-                ),
-
-                child: const Text(
-                  "受け取った。\nまた明日からやればいい。",
-                  style: TextStyle(color: Colors.white, fontSize: 20),
-                ),
-              ),
-          ],
-        ),
       ),
     );
   }
