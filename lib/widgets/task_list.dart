@@ -1,6 +1,9 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../utils/notification_logic.dart';
+import '../widgets/notification_button.dart';
+import '../widgets/notification_bar.dart';
 
 void main() {
   runApp(const MyApp());
@@ -347,6 +350,19 @@ class _SettingsPageState extends State<SettingsPage> {
   @override
   void initState() {
     super.initState();
+
+            
+            const SizedBox(height: 20),
+
+            
+            NotificationBar(),
+
+            const SizedBox(height: 10),
+
+            
+            const NotificationButton(),
+
+            const SizedBox(height: 20),
 
     tasks = widget.userTasks;
 

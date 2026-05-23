@@ -1,9 +1,11 @@
 import 'dart:convert';
-import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'dart:ui';
-import 'widgets/remaining_time.dart'; // 既存のウィジェット
+import 'utils/notification_logic.dart';
+import 'widgets/notification_bar.dart';
+import 'widgets/remaining_time.dart';
+import 'dart:math';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:ui';
 
 void main() {
@@ -13,25 +15,39 @@ void main() {
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
- @override
-Widget build(BuildContext context) {
-  return MaterialApp(
-    title: 'DO IT',
-    debugShowCheckedModeBanner: false,
+import 'dart:convert';
+import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'widgets/notification_bar.dart';
 
-    theme: ThemeData(
-      useMaterial3: true,
-      brightness: Brightness.dark,
-      fontFamily: 'Noto Sans JP',
-    ),
-
-    home: const MainContainer(),
-  );
-}
+void main() {
+  runApp(const MyApp());
 }
 
-// ================= ページ管理 =================
+// =====================================
+// アプリ本体
+// =====================================
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
 
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'DO IT',
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(
+        useMaterial3: true,
+        brightness: Brightness.dark,
+        fontFamily: 'Noto Sans JP',
+      ),
+      home: const MainContainer(),
+    );
+  }
+}
+
+// =====================================
+// ページ切り替え（ナビゲーション）
+// =====================================
 class MainContainer extends StatefulWidget {
   const MainContainer({super.key});
 
@@ -45,126 +61,262 @@ class _MainContainerState extends State<MainContainer> {
   final List<Widget> _pages = [
     const MainScreen(),
     const Scaffold(
-      body: Center(
-        child: Text("Tasks"),
-      ),
+      body: Center(child: Text("Tasks")),
     ),
     const Scaffold(
-      body: Center(
-        child: Text("Focus"),
-      ),
+      body: Center(child: Text("Focus")),
     ),
     const Scaffold(
-      body: Center(
-        child: Text("Settings"),
-      ),
+      body: Center(child: Text("Settings")),
     ),
   ];
 
   @override
   Widget build(BuildContext context) {
-    final isDark =
-        DateTime.now().hour >= 17 ||
-        DateTime.now().hour < 5;
-
     return Scaffold(
-      extendBody: true,
+      body: _pages[_currentIndex],
 
-      body: IndexedStack(
-        index: _currentIndex,
-        children: _pages,
+      bottomNavigationBar: BottomNavigationBar(
+        currentIndex: _currentIndex,
+        onTap: (index) {
+          setState(() {
+            _currentIndex = index;
+          });
+        },
+        items: const [
+          BottomNavigationBarItem(icon: Icon(Icons.home), label: "Home"),
+          BottomNavigationBarItem(icon: Icon(Icons.list), label: "Tasks"),
+          BottomNavigationBarItem(icon: Icon(Icons.timer), label: "Focus"),
+          BottomNavigationBarItem(icon: Icon(Icons.settings), label: "Settings"),
+        ],
       ),
+    );
+  }
+}
 
-      bottomNavigationBar: Container(
-        margin: const EdgeInsets.fromLTRB(
-          40,
-          0,
-          40,
-          24,
+// =====================================
+// ホーム画面（あなたの担当部分）
+// =====================================
+class MainScreen extends StatefulWidget {
+  const MainScreen({super.key});
+
+  @override
+  State<MainScreen> createState() => _MainScreenState();
+}
+
+class _MainScreenState extends State<MainScreen> {
+  List<Map<String, dynamic>> userTasks = [];
+
+  @override
+  void initState() {
+    super.initState();
+    loadTasks();
+  }
+
+  // タスク読み込み
+  Future<void> loadTasks() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString('tasks');
+
+    if (raw == null || raw.isEmpty) return;
+
+    final decoded = jsonDecode(raw);
+
+    if (decoded is List) {
+      setState(() {
+        userTasks =
+            decoded.whereType<Map<String, dynamic>>().toList();
+      });
+    }
+  }
+
+  // 背景グラデーション
+  List<Color> _getBackgroundGradient() {
+    final hour = DateTime.now().hour;
+
+    if (hour >= 5 && hour < 12) {
+      return [const Color(0xFFF3F9FB), const Color(0xFFE8F1F5)];
+    } else if (hour >= 12 && hour < 17) {
+      return [const Color(0xFFE3F2FD), const Color(0xFFBBDEFB)];
+    } else if (hour >= 17 && hour < 20) {
+      return [const Color(0xFFFFF3E0), const Color(0xFFFFE0B2)];
+    } else {
+      return [const Color(0xFFEDE7F6), const Color(0xFFE1BEE7)];
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: _getBackgroundGradient(),
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
         ),
+      ),
+      child: SafeArea(
+        child: Column(
+          children: [
+            // ✅ 通知UI（あなたが作った）
+            const NotificationBar(),
 
-        decoration: BoxDecoration(
-          color: (isDark
-                  ? Colors.white
-                  : Colors.black)
-              .withValues(alpha: 0.05),
+            const SizedBox(height: 20),
 
-          borderRadius: BorderRadius.circular(30),
-
-          border: Border.all(
-            color: (isDark
-                    ? Colors.white
-                    : Colors.black)
-                .withValues(alpha: 0.1),
-
-            width: 0.5,
-          ),
-        ),
-
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(30),
-
-          child: BackdropFilter(
-            filter: ImageFilter.blur(
-              sigmaX: 10,
-              sigmaY: 10,
+            const Text(
+              "Home",
+              style: TextStyle(
+                fontSize: 26,
+                fontWeight: FontWeight.bold,
+              ),
             ),
 
-            child: BottomNavigationBar(
-              currentIndex: _currentIndex,
+            const SizedBox(height: 20),
 
-              onTap: (index) {
-                setState(() {
-                  _currentIndex = index;
-                });
-              },
-
-              type: BottomNavigationBarType.fixed,
-
-              backgroundColor: Colors.transparent,
-
-              elevation: 0,
-
-              showSelectedLabels: false,
-              showUnselectedLabels: false,
-
-              selectedItemColor: isDark
-                  ? Colors.white
-                  : const Color(0xFF151B54),
-
-              unselectedItemColor:
-                  (isDark
-                          ? Colors.white
-                          : Colors.black)
-                      .withValues(alpha: 0.3),
-
-              items: const [
-                BottomNavigationBarItem(
-                  icon: Icon(Icons.home_outlined),
-                  label: "",
-                ),
-
-                BottomNavigationBarItem(
-                  icon: Icon(Icons.check_circle_outline),
-                  label: "",
-                ),
-
-                BottomNavigationBarItem(
-                  icon: Icon(Icons.timer_outlined),
-                  label: "",
-                ),
-
-                BottomNavigationBarItem(
-                  icon: Icon(Icons.settings_outlined),
-                  label: "",
-                ),
-              ],
+            const Text(
+              "ここにホーム画面のUIを追加できます",
+              style: TextStyle(fontSize: 16),
             ),
-          ),
+          ],
         ),
       ),
     );
   }
+}
+
+  int _calculateRemainingMinutes() {
+    final now = DateTime.now();
+    final currentTotal = now.hour * 60 + now.minute;
+    return 1440 - currentTotal;
+  }
+
+  void _showPageNotification() {
+    final remainingMinutes = _calculateRemainingMinutes();
+    final today = DateTime.now();
+    final todayKey = "${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}";
+
+    final visibleTasks = userTasks.where((task) {
+      final fixed = task['fixed'] == true;
+      final date = task['date']?.toString() ?? '';
+      return fixed || date == todayKey;
+    }).toList();
+
+    final message = buildNotification(
+      remainingMinutes: remainingMinutes,
+      tasks: visibleTasks,
+    );
+
+    setState(() {
+      notificationMessage = message;
+    });
+
+    if (message.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('画面に表示するおすすめタスクが見つかりませんでした')),
+      );
+    }
+  }
+
+@override
+Widget build(BuildContext context) {
+  final isDark =
+      DateTime.now().hour >= 17 ||
+      DateTime.now().hour < 5;
+
+  return Scaffold(
+    extendBody: true,
+
+    // ✅ ページ切り替え（develop側を採用）
+    body: IndexedStack(
+      index: _currentIndex,
+      children: [
+        // ✅ あなたのホーム画面（ここに統合）
+        MainScreen(),
+        const Scaffold(
+          body: Center(child: Text("Tasks")),
+        ),
+        const Scaffold(
+          body: Center(child: Text("Focus")),
+        ),
+        const Scaffold(
+          body: Center(child: Text("Settings")),
+        ),
+      ],
+    ),
+
+    // ✅ 下のナビゲーション（develop側そのまま）
+    bottomNavigationBar: Container(
+      margin: const EdgeInsets.fromLTRB(40, 0, 40, 24),
+
+      decoration: BoxDecoration(
+        color: (isDark ? Colors.white : Colors.black)
+            .withValues(alpha: 0.05),
+
+        borderRadius: BorderRadius.circular(30),
+
+        border: Border.all(
+          color: (isDark ? Colors.white : Colors.black)
+              .withValues(alpha: 0.1),
+          width: 0.5,
+        ),
+      ),
+
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(30),
+
+        child: BackdropFilter(
+          filter: ImageFilter.blur(
+            sigmaX: 10,
+            sigmaY: 10,
+          ),
+
+          child: BottomNavigationBar(
+            currentIndex: _currentIndex,
+
+            onTap: (index) {
+              setState(() {
+                _currentIndex = index;
+              });
+            },
+
+            type: BottomNavigationBarType.fixed,
+            backgroundColor: Colors.transparent,
+            elevation: 0,
+
+            showSelectedLabels: false,
+            showUnselectedLabels: false,
+
+            selectedItemColor:
+                isDark ? Colors.white : const Color(0xFF151B54),
+
+            unselectedItemColor:
+                (isDark ? Colors.white : Colors.black)
+                    .withValues(alpha: 0.3),
+
+            items: const [
+              BottomNavigationBarItem(
+                icon: Icon(Icons.home_outlined),
+                label: "",
+              ),
+              BottomNavigationBarItem(
+                icon: Icon(Icons.check_circle_outline),
+                label: "",
+              ),
+              BottomNavigationBarItem(
+                icon: Icon(Icons.timer_outlined),
+                label: "",
+              ),
+              BottomNavigationBarItem(
+                icon: Icon(Icons.settings_outlined),
+                label: "",
+              ),
+            ],
+          ),
+        ),
+      ),
+    ),
+  );
+}
 }
 
 // ================= MAIN SCREEN =================
