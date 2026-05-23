@@ -1,0 +1,18 @@
+// 今日の残り時間を計算する関数（Dart版）
+Duration getRemainingTime(int endHour, int endMinute) {
+  final now = DateTime.now();
+
+  final endTime = DateTime(
+    now.year,
+    now.month,
+    now.day,
+    endHour,
+    endMinute,
+  );
+
+  if (endTime.isBefore(now)) {
+    return Duration.zero;
+  }
+
+  return endTime.difference(now);
+}
