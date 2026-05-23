@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:ui';
 import 'widgets/remaining_time.dart'; // 既存のウィジェット
+import 'widgets/task_list.dart'; // タスク画面を追加
 
 void main() {
   runApp(const MyApp());
@@ -38,11 +39,7 @@ class _MainContainerState extends State<MainContainer> {
 
   final List<Widget> _pages = [
     const MainScreen(),
-    const Scaffold(
-      body: Center(
-        child: Text("Tasks"),
-      ),
-    ),
+    const HomePage(),
     const Scaffold(
       body: Center(
         child: Text("Focus"),

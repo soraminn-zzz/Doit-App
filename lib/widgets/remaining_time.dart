@@ -59,7 +59,8 @@ class _RemainingTimeWidgetState extends State<RemainingTimeWidget> with TickerPr
       vsync: this,
     )..repeat();
 
-    _timer = Timer.periodic(const Duration(minutes: 1), (Timer t) {
+    // Update more frequently so UI reacts during development; keep reasonable interval.
+    _timer = Timer.periodic(const Duration(seconds: 10), (Timer t) {
       _calculateActionTime();
     });
   }

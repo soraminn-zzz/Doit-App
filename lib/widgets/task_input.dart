@@ -1,42 +1,27 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../models/task.dart';
 
-void main() {
-  runApp(const MyApp());
-}
-
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+class TaskInputPage extends StatefulWidget {
+  const TaskInputPage({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    return const MaterialApp(
-      debugShowCheckedModeBanner: false,
-      home: HomePage(),
-    );
-  }
+  State<TaskInputPage> createState() => _TaskInputPageState();
 }
 
-class HomePage extends StatefulWidget {
-  const HomePage({super.key});
-
-  @override
-  State<HomePage> createState() => _HomePageState();
-}
-
-class _HomePageState extends State<HomePage> {
+class _TaskInputPageState extends State<TaskInputPage> {
   final List<Map<String, dynamic>> actions = [
-    {"name": "ƒAƒjƒ1˜b", "minutes": 24},
-    {"name": "U•à", "minutes": 30},
-    {"name": "‹ØƒgƒŒ", "minutes": 15},
-    {"name": "“Ç‘", "minutes": 20},
-    {"name": "áÒ‘z", "minutes": 10},
-    {"name": "‰f‰æ1–{", "minutes": 120},
-    {"name": "‰Û‘è", "minutes": 90},
+    {"name": "ãƒ¡ãƒ¼ãƒ«è¿”ä¿¡", "minutes": 24},
+    {"name": "æ´—æ¿¯", "minutes": 30},
+    {"name": "æƒé™¤", "minutes": 15},
+    {"name": "è²·ã„ç‰©", "minutes": 20},
+    {"name": "æ–™ç†", "minutes": 10},
+    {"name": "å‹‰å¼·", "minutes": 120},
+    {"name": "é‹å‹•", "minutes": 90},
   ];
 
-  List<Map<String, dynamic>> userTasks = [];
+  List<Task> userTasks = [];
 
   final taskNameController = TextEditingController();
   final taskMinutesController = TextEditingController();
@@ -50,183 +35,133 @@ class _HomePageState extends State<HomePage> {
     super.initState();
 
     final now = DateTime.now();
-
     todayDate = "${now.year}/${now.month}/${now.day}";
 
     loadTasks();
   }
 
+  @override
+  void dispose() {
+    taskNameController.dispose();
+    taskMinutesController.dispose();
+    super.dispose();
+  }
+
   Future<void> saveTasks() async {
     final prefs = await SharedPreferences.getInstance();
-
-    await prefs.setString("tasks", jsonEncode(userTasks));
+    final encoded = jsonEncode(userTasks.map((t) => t.toMap()).toList());
+    await prefs.setString('tasks', encoded);
   }
 
   Future<void> loadTasks() async {
     final prefs = await SharedPreferences.getInstance();
-
-    final data = prefs.getString("tasks");
-
+    final data = prefs.getString('tasks');
     if (data != null) {
-      setState(() {
-        userTasks = List<Map<String, dynamic>>.from(jsonDecode(data));
-      });
+      final decoded = jsonDecode(data);
+      if (decoded is List) {
+        setState(() {
+          userTasks = decoded
+              .map((e) => Task.fromMap(Map<String, dynamic>.from(e)))
+              .toList();
+        });
+      }
     }
   }
 
-  void addTask() {
+  Future<void> addTask() async {
     final name = taskNameController.text.trim();
-
-    final minutes = taskMinutesController.text.trim();
-
-    if (name.isEmpty || minutes.isEmpty) {
-      return;
-    }
+    final minutesText = taskMinutesController.text.trim();
+    if (name.isEmpty || minutesText.isEmpty) return;
+    final minutes = int.tryParse(minutesText) ?? 0;
 
     final now = DateTime.now();
+    final today = "${now.year}-${now.month.toString().padLeft(2, "0")}-${now.day.toString().padLeft(2, "0")}";
 
-    final today =
-        "${now.year}-${now.month.toString().padLeft(2, "0")}-${now.day.toString().padLeft(2, "0")}";
+    final newTask = Task(
+      id: DateTime.now().microsecondsSinceEpoch.toString(),
+      name: name,
+      minutes: minutes,
+      fixed: fixedTask,
+      date: today,
+    );
 
     setState(() {
-      userTasks.add({
-        "name": name,
-        "minutes": int.parse(minutes),
-        "date": today,
-        "fixed": fixedTask,
-      });
+      userTasks.add(newTask);
     });
 
-    saveTasks();
+    await saveTasks();
 
     taskNameController.clear();
     taskMinutesController.clear();
+
+    // Close input page and return to task list
+    if (mounted) Navigator.pop(context);
   }
 
   void deleteTask(int index) {
     setState(() {
       userTasks.removeAt(index);
     });
-
     saveTasks();
   }
 
   @override
   Widget build(BuildContext context) {
     final now = DateTime.now();
-
     final today =
         "${now.year}-${now.month.toString().padLeft(2, "0")}-${now.day.toString().padLeft(2, "0")}";
-
-    final visibleTasks = userTasks.where((task) {
-      return task["fixed"] == true || task["date"] == today;
-    }).toList();
+    final visibleTasks = userTasks.where((t) => t.fixed || t.date == today).toList();
 
     return Scaffold(
       backgroundColor: Colors.grey[200],
-
-      appBar: AppBar(title: const Text("c‚èŠÔƒAƒvƒŠ")),
-
+      appBar: AppBar(title: const Text('ã‚¿ã‚¹ã‚¯å…¥åŠ›')),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
-
         child: Column(
           children: [
-            Text(
-              todayDate,
-              style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
-            ),
-
+            Text(todayDate, style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold)),
             const SizedBox(height: 30),
-
-            const Text(
-              "‚¨‚·‚·‚ß",
-              style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-            ),
-
+            const Text('ãŠã™ã™ã‚ã‚¿ã‚¹ã‚¯', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
             const SizedBox(height: 10),
-
-            ...actions.map((action) {
-              return Card(
-                child: ListTile(
-                  title: Text(action["name"]),
-                  trailing: Text("${action["minutes"]}•ª"),
-                ),
-              );
-            }),
-
+            ...actions.map((action) => Card(
+                  child: ListTile(
+                    title: Text(action['name']),
+                    trailing: Text('${action['minutes']}åˆ†'),
+                  ),
+                )),
             const SizedBox(height: 30),
-
-            const Text(
-              "ƒ^ƒXƒN“o˜^",
-              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-            ),
-
+            const Text('ã‚¿ã‚¹ã‚¯è¿½åŠ ', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
             const SizedBox(height: 15),
-
             TextField(
               controller: taskNameController,
-              decoration: const InputDecoration(
-                labelText: "ƒ^ƒXƒN–¼",
-                border: OutlineInputBorder(),
-              ),
+              decoration: const InputDecoration(labelText: 'ã‚¿ã‚¹ã‚¯å', border: OutlineInputBorder()),
             ),
-
             const SizedBox(height: 10),
-
             TextField(
               controller: taskMinutesController,
               keyboardType: TextInputType.number,
-              decoration: const InputDecoration(
-                labelText: "‘z’èŠÔi•ªj",
-                border: OutlineInputBorder(),
-              ),
+              decoration: const InputDecoration(labelText: 'æ‰€è¦æ™‚é–“ï¼ˆåˆ†ï¼‰', border: OutlineInputBorder()),
             ),
-
             CheckboxListTile(
               value: fixedTask,
-              title: const Text("ŒÅ’èƒ^ƒXƒN"),
-              onChanged: (value) {
-                setState(() {
-                  fixedTask = value!;
-                });
-              },
+              title: const Text('å›ºå®šã‚¿ã‚¹ã‚¯'),
+              onChanged: (v) => setState(() => fixedTask = v ?? false),
             ),
-
-            ElevatedButton(onPressed: addTask, child: const Text("ƒ^ƒXƒN’Ç‰Á")),
-
+            ElevatedButton(onPressed: addTask, child: const Text('ã‚¿ã‚¹ã‚¯è¿½åŠ ')),
             const SizedBox(height: 20),
-
             ...visibleTasks.asMap().entries.map((entry) {
-              final index = entry.key;
-              final task = entry.value;
-
+              final idx = entry.key;
+              final t = entry.value;
               return Card(
                 child: Padding(
                   padding: const EdgeInsets.all(12),
-
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
-
                     children: [
-                      Text(
-                        task["name"],
-                        style: const TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-
-                      Text("${task["minutes"]}•ª"),
-
-                      Text(task["fixed"] ? "–ˆ“ú" : task["date"]),
-
-                      ElevatedButton(
-                        onPressed: () {
-                          deleteTask(index);
-                        },
-                        child: const Text("íœ"),
-                      ),
+                      Text(t.name, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                      Text('${t.minutes}åˆ†'),
+                      Text(t.fixed ? 'å›ºå®š' : t.date),
+                      ElevatedButton(onPressed: () => deleteTask(idx), child: const Text('å‰Šé™¤')),
                     ],
                   ),
                 ),
