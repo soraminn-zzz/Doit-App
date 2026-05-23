@@ -27,13 +27,13 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   final List<Map<String, dynamic>> actions = [
-    {"name": "ƒAƒjƒ1˜b", "minutes": 24},
-    {"name": "U•à", "minutes": 30},
-    {"name": "‹ØƒgƒŒ", "minutes": 15},
-    {"name": "“Ç‘", "minutes": 20},
-    {"name": "áÒ‘z", "minutes": 10},
-    {"name": "‰f‰æ1–{", "minutes": 120},
-    {"name": "‰Û‘è", "minutes": 90},
+    {"name": "ï¿½Aï¿½jï¿½ï¿½1ï¿½b", "minutes": 24},
+    {"name": "ï¿½Uï¿½ï¿½", "minutes": 30},
+    {"name": "ï¿½Øƒgï¿½ï¿½", "minutes": 15},
+    {"name": "ï¿½Çï¿½", "minutes": 20},
+    {"name": "ï¿½Ò‘z", "minutes": 10},
+    {"name": "ï¿½fï¿½ï¿½1ï¿½{", "minutes": 120},
+    {"name": "ï¿½Û‘ï¿½", "minutes": 90},
   ];
 
   List<Map<String, dynamic>> userTasks = [];
@@ -149,7 +149,7 @@ class _HomePageState extends State<HomePage> {
     final remainingMinutes = remaining % 60;
 
     setState(() {
-      remainingText = "c‚è ${remainingHours}ŠÔ ${remainingMinutes}•ª";
+      remainingText = "æ®‹ã‚Š ${remainingHours}æ™‚é–“ ${remainingMinutes}åˆ†";
     });
   }
 
@@ -167,7 +167,7 @@ class _HomePageState extends State<HomePage> {
     return Scaffold(
       backgroundColor: Colors.grey[200],
 
-      appBar: AppBar(title: const Text("c‚èŠÔƒAƒvƒŠ")),
+      appBar: AppBar(title: const Text("æ®‹ã‚Šæ™‚é–“ã‚¢ãƒ—ãƒª")),
 
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
@@ -188,7 +188,7 @@ class _HomePageState extends State<HomePage> {
               controller: sleepTimeController,
 
               decoration: const InputDecoration(
-                labelText: "Q‚éŠÔ (—á 23:00)",
+                labelText: "å¯ã‚‹æ™‚é–“(ä¾‹ 23:00)",
                 border: OutlineInputBorder(),
               ),
             ),
@@ -211,7 +211,7 @@ class _HomePageState extends State<HomePage> {
             const SizedBox(height: 30),
 
             const Text(
-              "‚¨‚·‚·‚ß",
+              "ãŠã™ã™ã‚",
               style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
             ),
 
@@ -221,7 +221,7 @@ class _HomePageState extends State<HomePage> {
               return Card(
                 child: ListTile(
                   title: Text(action["name"]),
-                  trailing: Text("${action["minutes"]}•ª"),
+                  trailing: Text("${action["minutes"]}åˆ†"),
                 ),
               );
             }),
@@ -229,7 +229,7 @@ class _HomePageState extends State<HomePage> {
             const SizedBox(height: 30),
 
             const Text(
-              "ƒ^ƒXƒN“o˜^",
+              "ã‚¿ã‚¹ã‚¯ç™»éŒ²",
               style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
             ),
 
@@ -239,7 +239,7 @@ class _HomePageState extends State<HomePage> {
               controller: taskNameController,
 
               decoration: const InputDecoration(
-                labelText: "ƒ^ƒXƒN–¼",
+                labelText: "ã‚¿ã‚¹ã‚¯å",
                 border: OutlineInputBorder(),
               ),
             ),
@@ -252,7 +252,7 @@ class _HomePageState extends State<HomePage> {
               keyboardType: TextInputType.number,
 
               decoration: const InputDecoration(
-                labelText: "‘z’èŠÔi•ªj",
+                labelText: "æƒ³å®šæ™‚é–“",
                 border: OutlineInputBorder(),
               ),
             ),
@@ -261,7 +261,7 @@ class _HomePageState extends State<HomePage> {
 
             CheckboxListTile(
               value: fixedTask,
-              title: const Text("ŒÅ’èƒ^ƒXƒN"),
+              title: const Text("å›ºå®šã‚¿ã‚¹ã‚¯"),
 
               onChanged: (value) {
                 setState(() {
@@ -270,12 +270,12 @@ class _HomePageState extends State<HomePage> {
               },
             ),
 
-            ElevatedButton(onPressed: addTask, child: const Text("ƒ^ƒXƒN’Ç‰Á")),
+            ElevatedButton(onPressed: addTask, child: const Text("ã‚¿ã‚¹ã‚¯è¿½åŠ ")),
 
             const SizedBox(height: 30),
 
             const Text(
-              "¡“ú‚Ìƒ^ƒXƒN",
+              "ä»Šæ—¥ã®ã‚¿ã‚¹ã‚¯",
               style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
             ),
 
@@ -303,9 +303,9 @@ class _HomePageState extends State<HomePage> {
 
                       const SizedBox(height: 5),
 
-                      Text("${task["minutes"]}•ª"),
+                      Text("${task["minutes"]}åˆ†"),
 
-                      Text(task["fixed"] ? "–ˆ“ú" : task["date"]),
+                      Text(task["fixed"] ? "æ¯æ—¥" : task["date"]),
 
                       const SizedBox(height: 10),
 
@@ -313,7 +313,7 @@ class _HomePageState extends State<HomePage> {
                         onPressed: () {
                           deleteTask(index);
                         },
-                        child: const Text("íœ"),
+                        child: const Text("å‰Šé™¤"),
                       ),
                     ],
                   ),

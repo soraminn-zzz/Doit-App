@@ -350,20 +350,6 @@ class _SettingsPageState extends State<SettingsPage> {
   @override
   void initState() {
     super.initState();
-
-            
-            const SizedBox(height: 20),
-
-            
-            NotificationBar(),
-
-            const SizedBox(height: 10),
-
-            
-            const NotificationButton(),
-
-            const SizedBox(height: 20),
-
     tasks = widget.userTasks;
 
     final now = DateTime.now();
