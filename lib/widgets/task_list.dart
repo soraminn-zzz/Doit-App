@@ -1,6 +1,9 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../utils/notification_logic.dart';
+import '../widgets/notification_button.dart';
+import '../widgets/notification_bar.dart';
 
 void main() {
   runApp(const MyApp());
@@ -22,13 +25,13 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   final List<Map<String, dynamic>> actions = [
-    {"name": "ƒAƒjƒ1˜b", "minutes": 24},
-    {"name": "U•à", "minutes": 30},
-    {"name": "‹ØƒgƒŒ", "minutes": 15},
-    {"name": "“Ç‘", "minutes": 20},
-    {"name": "áÒ‘z", "minutes": 10},
-    {"name": "‰f‰æ1–{", "minutes": 120},
-    {"name": "‰Û‘è", "minutes": 90},
+    {"name": "ï¿½Aï¿½jï¿½ï¿½1ï¿½b", "minutes": 24},
+    {"name": "ï¿½Uï¿½ï¿½", "minutes": 30},
+    {"name": "ï¿½Øƒgï¿½ï¿½", "minutes": 15},
+    {"name": "ï¿½Çï¿½", "minutes": 20},
+    {"name": "ï¿½Ò‘z", "minutes": 10},
+    {"name": "ï¿½fï¿½ï¿½1ï¿½{", "minutes": 120},
+    {"name": "ï¿½Û‘ï¿½", "minutes": 90},
   ];
 
   List<Map<String, dynamic>> userTasks = [];
@@ -132,7 +135,7 @@ class _HomePageState extends State<HomePage> {
     final remainingMinutes = remaining % 60;
 
     setState(() {
-      remainingText = "c‚è ${remainingHours}ŠÔ ${remainingMinutes}•ª";
+      remainingText = "ï¿½cï¿½ï¿½ ${remainingHours}ï¿½ï¿½ï¿½ï¿½ ${remainingMinutes}ï¿½ï¿½";
     });
   }
 
@@ -150,7 +153,7 @@ class _HomePageState extends State<HomePage> {
     return Scaffold(
       backgroundColor: Colors.grey[200],
 
-      appBar: AppBar(title: const Text("c‚èŠÔƒAƒvƒŠ")),
+      appBar: AppBar(title: const Text("ï¿½cï¿½èï¿½ÔƒAï¿½vï¿½ï¿½")),
 
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
@@ -162,12 +165,24 @@ class _HomePageState extends State<HomePage> {
               style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
             ),
 
+            
             const SizedBox(height: 20),
+
+            
+            NotificationBar(),
+
+            const SizedBox(height: 10),
+
+            
+            const NotificationButton(),
+
+            const SizedBox(height: 20),
+
 
             TextField(
               controller: sleepTimeController,
               decoration: const InputDecoration(
-                labelText: "Q‚éŠÔ (—á 23:00)",
+                labelText: "ï¿½Qï¿½éï¿½ï¿½ (ï¿½ï¿½ 23:00)",
                 border: OutlineInputBorder(),
               ),
             ),
@@ -179,6 +194,9 @@ class _HomePageState extends State<HomePage> {
               child: const Text("Do it!"),
             ),
 
+            const SizedBox(height: 8),
+            
+
             const SizedBox(height: 20),
 
             Text(remainingText, style: const TextStyle(fontSize: 22)),
@@ -186,7 +204,7 @@ class _HomePageState extends State<HomePage> {
             const SizedBox(height: 20),
 
             const Text(
-              "‚¨‚·‚·‚ß",
+              "ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½",
               style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
             ),
 
@@ -196,7 +214,7 @@ class _HomePageState extends State<HomePage> {
               return Card(
                 child: ListTile(
                   title: Text(action["name"]),
-                  trailing: Text("${action["minutes"]}•ª"),
+                  trailing: Text("${action["minutes"]}ï¿½ï¿½"),
                 ),
               );
             }),
@@ -204,7 +222,7 @@ class _HomePageState extends State<HomePage> {
             const SizedBox(height: 30),
 
             const Text(
-              "ƒ^ƒXƒN“o˜^",
+              "ï¿½^ï¿½Xï¿½Nï¿½oï¿½^",
               style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
             ),
 
@@ -213,7 +231,7 @@ class _HomePageState extends State<HomePage> {
             TextField(
               controller: taskNameController,
               decoration: const InputDecoration(
-                labelText: "ƒ^ƒXƒN–¼",
+                labelText: "ï¿½^ï¿½Xï¿½Nï¿½ï¿½",
                 border: OutlineInputBorder(),
               ),
             ),
@@ -224,14 +242,14 @@ class _HomePageState extends State<HomePage> {
               controller: taskMinutesController,
               keyboardType: TextInputType.number,
               decoration: const InputDecoration(
-                labelText: "‘z’èŠÔi•ªj",
+                labelText: "ï¿½zï¿½èï¿½Ôiï¿½ï¿½ï¿½j",
                 border: OutlineInputBorder(),
               ),
             ),
 
             CheckboxListTile(
               value: fixedTask,
-              title: const Text("ŒÅ’èƒ^ƒXƒN"),
+              title: const Text("ï¿½Å’ï¿½^ï¿½Xï¿½N"),
               onChanged: (value) {
                 setState(() {
                   fixedTask = value!;
@@ -239,7 +257,7 @@ class _HomePageState extends State<HomePage> {
               },
             ),
 
-            ElevatedButton(onPressed: addTask, child: const Text("ƒ^ƒXƒN’Ç‰Á")),
+            ElevatedButton(onPressed: addTask, child: const Text("ï¿½^ï¿½Xï¿½Nï¿½Ç‰ï¿½")),
 
             const SizedBox(height: 20),
 
@@ -263,15 +281,15 @@ class _HomePageState extends State<HomePage> {
                         ),
                       ),
 
-                      Text("${task["minutes"]}•ª"),
+                      Text("${task["minutes"]}ï¿½ï¿½"),
 
-                      Text(task["fixed"] ? "–ˆ“ú" : task["date"]),
+                      Text(task["fixed"] ? "ï¿½ï¿½ï¿½ï¿½" : task["date"]),
 
                       ElevatedButton(
                         onPressed: () {
                           deleteTask(index);
                         },
-                        child: const Text("íœ"),
+                        child: const Text("ï¿½íœ"),
                       ),
                     ],
                   ),
