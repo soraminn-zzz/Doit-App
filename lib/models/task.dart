@@ -1,97 +1,286 @@
-class Task {
-  final String id;
-  final String title;
-  final Duration estimated;
-  final int priority; // Â§ß„Åç„ÅÑ„Åª„Å©È´òÂÑ™ÂÖà
-  final int casualness; // Â§ß„Åç„ÅÑ„Åª„Å©Ê∞óËªΩ
-  final bool done;
-  final DateTime createdAt;
+import 'dart:convert';
+import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
-  Task({
-    required this.id,
-    required this.title,
-    required this.estimated,
-    required this.priority,
-    required this.casualness,
-    this.done = false,
-    DateTime? createdAt,
-  })  : createdAt = createdAt ?? DateTime.now(),
-        assert(id != ''),
-        assert(title != ''),
-        assert(!estimated.isNegative),
-        assert(priority >= 0),
-        assert(casualness >= 0);
+void main() {
+  runApp(const MyApp());
+}
 
-  Task copyWith({
-    String? id,
-    String? title,
-    Duration? estimated,
-    int? priority,
-    int? casualness,
-    bool? done,
-    DateTime? createdAt,
-  }) {
-    return Task(
-      id: id ?? this.id,
-      title: title ?? this.title,
-      estimated: estimated ?? this.estimated,
-      priority: priority ?? this.priority,
-      casualness: casualness ?? this.casualness,
-      done: done ?? this.done,
-      createdAt: createdAt ?? this.createdAt,
-    );
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(debugShowCheckedModeBanner: false, home: HomePage());
+  }
+}
+
+class HomePage extends StatefulWidget {
+  @override
+  State<HomePage> createState() => _HomePageState();
+}
+
+class _HomePageState extends State<HomePage> {
+  final List<Map<String, dynamic>> actions = [
+    {"name": "ÉAÉjÉÅ1òb", "minutes": 24},
+    {"name": "éUï‡", "minutes": 30},
+    {"name": "ãÿÉgÉå", "minutes": 15},
+    {"name": "ì«èë", "minutes": 20},
+    {"name": "·“ëz", "minutes": 10},
+    {"name": "âfâÊ1ñ{", "minutes": 120},
+    {"name": "â€ëË", "minutes": 90},
+  ];
+
+  List<Map<String, dynamic>> userTasks = [];
+
+  final taskNameController = TextEditingController();
+  final taskMinutesController = TextEditingController();
+  final sleepTimeController = TextEditingController();
+
+  bool fixedTask = false;
+
+  String todayDate = "";
+  String remainingText = "";
+
+  @override
+  void initState() {
+    super.initState();
+
+    final now = DateTime.now();
+
+    todayDate = "${now.year}/${now.month}/${now.day}";
+
+    loadTasks();
   }
 
-  Map<String, dynamic> toJson() => {
-    'id': id,
-    'title': title,
-    'estimatedMinutes': estimated.inMinutes,
-    'priority': priority,
-    'casualness': casualness,
-    'done': done,
-    'createdAt': createdAt.toIso8601String(),
-  };
+  Future<void> saveTasks() async {
+    final prefs = await SharedPreferences.getInstance();
 
-  factory Task.fromJson(Map<String, dynamic> m) => Task(
-    id: m['id'] as String,
-    title: m['title'] as String,
-    estimated: Duration(minutes: (m['estimatedMinutes'] as num).toInt()),
-    priority: (m['priority'] as num).toInt(),
-    casualness: (m['casualness'] as num).toInt(),
-    done: (m['done'] as bool?) ?? false,
-    createdAt: m['createdAt'] != null
-        ? DateTime.parse(m['createdAt'] as String)
-        : null,
-  );
+    prefs.setString("tasks", jsonEncode(userTasks));
+  }
+
+  Future<void> loadTasks() async {
+    final prefs = await SharedPreferences.getInstance();
+
+    final data = prefs.getString("tasks");
+
+    if (data != null) {
+      setState(() {
+        userTasks = List<Map<String, dynamic>>.from(jsonDecode(data));
+      });
+    }
+  }
+
+  void addTask() {
+    final name = taskNameController.text;
+
+    final minutes = taskMinutesController.text;
+
+    if (name.isEmpty || minutes.isEmpty) {
+      return;
+    }
+
+    final now = DateTime.now();
+
+    final today =
+        "${now.year}-${now.month.toString().padLeft(2, "0")}-${now.day.toString().padLeft(2, "0")}";
+
+    setState(() {
+      userTasks.add({
+        "name": name,
+        "minutes": int.parse(minutes),
+        "date": today,
+        "fixed": fixedTask,
+      });
+    });
+
+    saveTasks();
+
+    taskNameController.clear();
+    taskMinutesController.clear();
+  }
+
+  void deleteTask(int index) {
+    setState(() {
+      userTasks.removeAt(index);
+    });
+
+    saveTasks();
+  }
+
+  void showSuggestions() {
+    final now = DateTime.now();
+
+    final currentTotal = now.hour * 60 + now.minute;
+
+    int remaining = 1440 - currentTotal;
+
+    if (sleepTimeController.text.isNotEmpty) {
+      final parts = sleepTimeController.text.split(":");
+
+      final sleepHours = int.parse(parts[0]);
+
+      final sleepMinutes = int.parse(parts[1]);
+
+      final sleepTotal = sleepHours * 60 + sleepMinutes;
+
+      remaining = sleepTotal - currentTotal;
+    }
+
+    final remainingHours = remaining ~/ 60;
+
+    final remainingMinutes = remaining % 60;
+
+    setState(() {
+      remainingText = "écÇË ${remainingHours}éûä‘ ${remainingMinutes}ï™";
+    });
+  }
 
   @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-          other is Task &&
-              runtimeType == other.runtimeType &&
-              id == other.id &&
-              title == other.title &&
-              estimated == other.estimated &&
-              priority == other.priority &&
-              casualness == other.casualness &&
-              done == other.done;
+  Widget build(BuildContext context) {
+    final now = DateTime.now();
 
-  @override
-  int get hashCode =>
-      id.hashCode ^
-      title.hashCode ^
-      estimated.hashCode ^
-      priority.hashCode ^
-      casualness.hashCode ^
-      done.hashCode;
+    final today =
+        "${now.year}-${now.month.toString().padLeft(2, "0")}-${now.day.toString().padLeft(2, "0")}";
 
-  @override
-  String toString() =>
-      'Task($id, $title, ${estimated.inMinutes}min, p:$priority, c:$casualness, done:$done)';
+    final visibleTasks = userTasks.where((task) {
+      return task["fixed"] == true || task["date"] == today;
+    }).toList();
 
-  // ÊØîËºÉÁî®„É¶„Éº„ÉÜ„Ç£„É™„ÉÜ„Ç£ÔºàÂÑ™ÂÖàÂ∫¶‚ÜíÊ∞óËªΩ„Åï„ÅÆÈôçÈ†ÜÔºâ
-  static int compareByPriorityThenCasualness(Task a, Task b) {
-    final p = b.priority.compareTo(a.priority);
-    return p != 0 ? p : b.casualness.compareTo(a.casualness);
+    return Scaffold(
+      backgroundColor: Colors.grey[200],
+
+      appBar: AppBar(title: const Text("écÇËéûä‘ÉAÉvÉä")),
+
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(20),
+
+        child: Column(
+          children: [
+            Text(
+              todayDate,
+              style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+            ),
+
+            const SizedBox(height: 20),
+
+            TextField(
+              controller: sleepTimeController,
+              decoration: const InputDecoration(
+                labelText: "êQÇÈéûä‘ (ó· 23:00)",
+                border: OutlineInputBorder(),
+              ),
+            ),
+
+            const SizedBox(height: 10),
+
+            ElevatedButton(
+              onPressed: showSuggestions,
+              child: const Text("Do it!"),
+            ),
+
+            const SizedBox(height: 20),
+
+            Text(remainingText, style: const TextStyle(fontSize: 22)),
+
+            const SizedBox(height: 20),
+
+            const Text(
+              "Ç®Ç∑Ç∑Çﬂ",
+              style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+            ),
+
+            const SizedBox(height: 10),
+
+            ...actions.map((action) {
+              return Card(
+                child: ListTile(
+                  title: Text(action["name"]),
+                  trailing: Text("${action["minutes"]}ï™"),
+                ),
+              );
+            }),
+
+            const SizedBox(height: 30),
+
+            const Text(
+              "É^ÉXÉNìoò^",
+              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+            ),
+
+            const SizedBox(height: 15),
+
+            TextField(
+              controller: taskNameController,
+              decoration: const InputDecoration(
+                labelText: "É^ÉXÉNñº",
+                border: OutlineInputBorder(),
+              ),
+            ),
+
+            const SizedBox(height: 10),
+
+            TextField(
+              controller: taskMinutesController,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                labelText: "ëzíËéûä‘Åiï™Åj",
+                border: OutlineInputBorder(),
+              ),
+            ),
+
+            CheckboxListTile(
+              value: fixedTask,
+              title: const Text("å≈íËÉ^ÉXÉN"),
+              onChanged: (value) {
+                setState(() {
+                  fixedTask = value!;
+                });
+              },
+            ),
+
+            ElevatedButton(onPressed: addTask, child: const Text("É^ÉXÉNí«â¡")),
+
+            const SizedBox(height: 20),
+
+            ...visibleTasks.asMap().entries.map((entry) {
+              final index = entry.key;
+              final task = entry.value;
+
+              return Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+
+                    children: [
+                      Text(
+                        task["name"],
+                        style: const TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+
+                      Text("${task["minutes"]}ï™"),
+
+                      Text(task["fixed"] ? "ñàì˙" : task["date"]),
+
+                      ElevatedButton(
+                        onPressed: () {
+                          deleteTask(index);
+                        },
+                        child: const Text("çÌèú"),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }),
+          ],
+        ),
+      ),
+    );
   }
 }
