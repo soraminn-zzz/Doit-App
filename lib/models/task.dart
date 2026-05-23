@@ -11,11 +11,16 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(debugShowCheckedModeBanner: false, home: HomePage());
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      home: const HomePage(),
+    );
   }
 }
 
 class HomePage extends StatefulWidget {
+  const HomePage({super.key});
+
   @override
   State<HomePage> createState() => _HomePageState();
 }
@@ -56,7 +61,7 @@ class _HomePageState extends State<HomePage> {
   Future<void> saveTasks() async {
     final prefs = await SharedPreferences.getInstance();
 
-    prefs.setString("tasks", jsonEncode(userTasks));
+    await prefs.setString("tasks", jsonEncode(userTasks));
   }
 
   Future<void> loadTasks() async {
@@ -72,11 +77,17 @@ class _HomePageState extends State<HomePage> {
   }
 
   void addTask() {
-    final name = taskNameController.text;
+    final name = taskNameController.text.trim();
 
-    final minutes = taskMinutesController.text;
+    final minutes = taskMinutesController.text.trim();
 
     if (name.isEmpty || minutes.isEmpty) {
+      return;
+    }
+
+    final minuteValue = int.tryParse(minutes);
+
+    if (minuteValue == null) {
       return;
     }
 
@@ -88,7 +99,7 @@ class _HomePageState extends State<HomePage> {
     setState(() {
       userTasks.add({
         "name": name,
-        "minutes": int.parse(minutes),
+        "minutes": minuteValue,
         "date": today,
         "fixed": fixedTask,
       });
@@ -118,13 +129,19 @@ class _HomePageState extends State<HomePage> {
     if (sleepTimeController.text.isNotEmpty) {
       final parts = sleepTimeController.text.split(":");
 
-      final sleepHours = int.parse(parts[0]);
+      if (parts.length == 2) {
+        final sleepHours = int.tryParse(parts[0]) ?? 0;
 
-      final sleepMinutes = int.parse(parts[1]);
+        final sleepMinutes = int.tryParse(parts[1]) ?? 0;
 
-      final sleepTotal = sleepHours * 60 + sleepMinutes;
+        final sleepTotal = sleepHours * 60 + sleepMinutes;
 
-      remaining = sleepTotal - currentTotal;
+        remaining = sleepTotal - currentTotal;
+      }
+    }
+
+    if (remaining < 0) {
+      remaining = 0;
     }
 
     final remainingHours = remaining ~/ 60;
@@ -156,9 +173,12 @@ class _HomePageState extends State<HomePage> {
         padding: const EdgeInsets.all(20),
 
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+
           children: [
             Text(
               todayDate,
+              textAlign: TextAlign.center,
               style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
             ),
 
@@ -166,6 +186,7 @@ class _HomePageState extends State<HomePage> {
 
             TextField(
               controller: sleepTimeController,
+
               decoration: const InputDecoration(
                 labelText: "寝る時間 (例 23:00)",
                 border: OutlineInputBorder(),
@@ -181,13 +202,17 @@ class _HomePageState extends State<HomePage> {
 
             const SizedBox(height: 20),
 
-            Text(remainingText, style: const TextStyle(fontSize: 22)),
+            Text(
+              remainingText,
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+            ),
 
-            const SizedBox(height: 20),
+            const SizedBox(height: 30),
 
             const Text(
               "おすすめ",
-              style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
             ),
 
             const SizedBox(height: 10),
@@ -212,6 +237,7 @@ class _HomePageState extends State<HomePage> {
 
             TextField(
               controller: taskNameController,
+
               decoration: const InputDecoration(
                 labelText: "タスク名",
                 border: OutlineInputBorder(),
@@ -222,26 +248,38 @@ class _HomePageState extends State<HomePage> {
 
             TextField(
               controller: taskMinutesController,
+
               keyboardType: TextInputType.number,
+
               decoration: const InputDecoration(
                 labelText: "想定時間（分）",
                 border: OutlineInputBorder(),
               ),
             ),
 
+            const SizedBox(height: 10),
+
             CheckboxListTile(
               value: fixedTask,
               title: const Text("固定タスク"),
+
               onChanged: (value) {
                 setState(() {
-                  fixedTask = value!;
+                  fixedTask = value ?? false;
                 });
               },
             ),
 
             ElevatedButton(onPressed: addTask, child: const Text("タスク追加")),
 
-            const SizedBox(height: 20),
+            const SizedBox(height: 30),
+
+            const Text(
+              "今日のタスク",
+              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+            ),
+
+            const SizedBox(height: 10),
 
             ...visibleTasks.asMap().entries.map((entry) {
               final index = entry.key;
@@ -263,9 +301,13 @@ class _HomePageState extends State<HomePage> {
                         ),
                       ),
 
+                      const SizedBox(height: 5),
+
                       Text("${task["minutes"]}分"),
 
                       Text(task["fixed"] ? "毎日" : task["date"]),
+
+                      const SizedBox(height: 10),
 
                       ElevatedButton(
                         onPressed: () {
