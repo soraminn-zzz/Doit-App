@@ -1,55 +1,50 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:convert';
 
-class TaskSuggestionPage extends StatelessWidget {
+class TaskSuggestionPage extends StatefulWidget {
   const TaskSuggestionPage({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    // ✅ デバッグ用タスク（今は固定）
-    final tasks = [
-      {"name": "アニメ1話", "minutes": 24},
-      {"name": "筋トレ", "minutes": 30},
-      {"name": "ストレッチ", "minutes": 15},
-      {"name": "読書", "minutes": 20},
-    ];
+  State<TaskSuggestionPage> createState() =>
+      _TaskSuggestionPageState();
+}
 
+class _TaskSuggestionPageState extends State<TaskSuggestionPage> {
+  List<Map<String, dynamic>> tasks = [];
+
+  @override
+  void initState() {
+    super.initState();
+    load();
+  }
+
+  void load() async {
+    final prefs = await SharedPreferences.getInstance();
+    final data = prefs.getString("tasks");
+
+    if (data != null) {
+      setState(() {
+        tasks = List<Map<String, dynamic>>.from(jsonDecode(data));
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text("おすすめタスク"),
-      ),
+      appBar: AppBar(title: const Text("タスク選択")),
 
       body: ListView.builder(
-        padding: const EdgeInsets.all(16),
         itemCount: tasks.length,
-
         itemBuilder: (context, index) {
           final task = tasks[index];
 
-          return Card(
-            elevation: 4,
-            margin: const EdgeInsets.symmetric(vertical: 8),
-
-            child: ListTile(
-              leading: const Icon(
-                Icons.check_circle_outline,
-                color: Colors.blue,
-              ),
-
-              title: Text(task["name"].toString()),
-
-              subtitle: Text("${task["minutes"].toString()}分"),
-
-              trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-
-              // ✅ タップした時
-              onTap: () {
-                // 👇 ここが超重要！！
-                Navigator.pop(
-                  context,
-                  task["name"], // ← NotificationBarに返す
-                );
-              },
-            ),
+          return ListTile(
+            title: Text(task["name"]),
+            onTap: () {
+              Navigator.pop(context, task["name"]);
+            },
           );
         },
       ),
