@@ -31,18 +31,18 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  // AI提案
+  // AI提�?
   final List<String> aiSuggestions = [
-    "5分だけ机を片付けよう",
-    "水を飲んで休憩しよう",
-    "スマホを裏返して10分集中",
-    "軽くストレッチしよう",
-    "本を2ページだけ読む",
-    "外の空気を吸いに行く",
+    "5�?�?け机を片付けよう",
+    "水を飲んで休�?�しよ�?",
+    "スマ�?�を裏返して10�?�?中",
+    "軽くストレ�?チしよう",
+    "本�?2ペ�?�ジ�?け読む",
+    "外�?�空気を吸�?に行く",
     "明日の準備を少し進める",
-    "メールを1件だけ返す",
-    "部屋のゴミを1つ捨てる",
-    "タイマー15分だけ頑張る",
+    "メール�?1件�?け返す",
+    "部屋�?�ゴミを1つ捨て�?",
+    "タイマ�?�15�?�?け�?�張�?",
   ];
 
   String currentSuggestion = "";
@@ -119,7 +119,7 @@ class _HomePageState extends State<HomePage> {
             onPressed: selectViewDate,
           ),
 
-          // 設定
+          // 設�?
           IconButton(
             icon: const Icon(Icons.settings),
             onPressed: () async {
@@ -165,9 +165,9 @@ class _HomePageState extends State<HomePage> {
                   currentSuggestion = aiSuggestions.first;
                 });
 
-                ScaffoldMessenger.of(
-                  context,
-                ).showSnackBar(const SnackBar(content: Text("AIが提案を生成しました")));
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text("AIが提案を生�?�しました")),
+                );
               },
 
               style: ElevatedButton.styleFrom(
@@ -189,12 +189,12 @@ class _HomePageState extends State<HomePage> {
 
             const SizedBox(height: 30),
 
-            // ===== AI提案 =====
+            // ===== AI提�? =====
             if (showRecommendations && noTasks) ...[
               const Align(
                 alignment: Alignment.centerLeft,
                 child: Text(
-                  "AI提案",
+                  "AI提�?",
                   style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
                 ),
               ),
@@ -280,7 +280,7 @@ class _HomePageState extends State<HomePage> {
                             const SizedBox(height: 6),
 
                             Text(
-                              "${task["minutes"]}分",
+                              "${task["minutes"]}�?",
                               style: TextStyle(
                                 fontSize: 16,
                                 color: Colors.grey[700],
@@ -405,7 +405,7 @@ class _SettingsPageState extends State<SettingsPage> {
 
     ScaffoldMessenger.of(
       context,
-    ).showSnackBar(const SnackBar(content: Text("タスク追加完了")));
+    ).showSnackBar(const SnackBar(content: Text("タスク追�?完�?")));
   }
 
   @override
@@ -413,7 +413,7 @@ class _SettingsPageState extends State<SettingsPage> {
     return Scaffold(
       backgroundColor: Colors.grey[200],
 
-      appBar: AppBar(title: const Text("設定")),
+      appBar: AppBar(title: const Text("設�?")),
 
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
@@ -431,7 +431,7 @@ class _SettingsPageState extends State<SettingsPage> {
               controller: taskNameController,
 
               decoration: const InputDecoration(
-                labelText: "タスク名",
+                labelText: "タスク�?",
                 border: OutlineInputBorder(),
                 filled: true,
                 fillColor: Colors.white,
@@ -445,7 +445,7 @@ class _SettingsPageState extends State<SettingsPage> {
               keyboardType: TextInputType.number,
 
               decoration: const InputDecoration(
-                labelText: "想定時間（分）",
+                labelText: "想定時間（�???�?",
                 border: OutlineInputBorder(),
                 filled: true,
                 fillColor: Colors.white,
@@ -461,7 +461,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 borderRadius: BorderRadius.circular(8),
               ),
 
-              title: const Text("タスクの日付"),
+              title: const Text("タスクの日�?"),
 
               subtitle: Text(selectedTaskDate),
 
@@ -492,7 +492,7 @@ class _SettingsPageState extends State<SettingsPage> {
 
             const SizedBox(height: 15),
 
-            ElevatedButton(onPressed: addTask, child: const Text("タスク追加")),
+            ElevatedButton(onPressed: addTask, child: const Text("タスク追�?")),
           ],
         ),
       ),
@@ -510,7 +510,10 @@ class ConfessionPage extends StatelessWidget {
     return Scaffold(
       backgroundColor: Colors.grey[900],
 
-      appBar: AppBar(title: const Text("懺悔室"), backgroundColor: Colors.black),
+      appBar: AppBar(
+        title: const Text("懺悔室"),
+        backgroundColor: Colors.black,
+      ),
 
       body: const Center(
         child: Padding(
