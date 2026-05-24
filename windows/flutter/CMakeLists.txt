@@ -1,231 +1,109 @@
-<!DOCTYPE html>
-<html lang="ja">
-<head>
-  <meta charset="UTF-8">
-  <title>残り時間</title>
+# This file controls Flutter-level build steps. It should not be edited.
+cmake_minimum_required(VERSION 3.14)
 
-  <style>
-    body {
-      font-family: sans-serif;
-      padding: 30px;
-      background: #f5f5f5;
-    }
+set(EPHEMERAL_DIR "${CMAKE_CURRENT_SOURCE_DIR}/ephemeral")
 
-    h1 {
-      color: #333;
-    }
+# Configuration provided via flutter tool.
+include(${EPHEMERAL_DIR}/generated_config.cmake)
 
-    .box {
-      background: blue;
-      padding: 20px;
-      border-radius: 10px;
-      max-width: 400px;
-    }
+# TODO: Move the rest of this into files in ephemeral. See
+# https://github.com/flutter/flutter/issues/57146.
+set(WRAPPER_ROOT "${EPHEMERAL_DIR}/cpp_client_wrapper")
 
-    #result {
-      margin-top: 20px;
-      font-size: 20px;
-    }
+# Set fallback configurations for older versions of the flutter tool.
+if (NOT DEFINED FLUTTER_TARGET_PLATFORM)
+  set(FLUTTER_TARGET_PLATFORM "windows-x64")
+endif()
 
-li {
+# === Flutter Library ===
+set(FLUTTER_LIBRARY "${EPHEMERAL_DIR}/flutter_windows.dll")
 
-  margin-bottom: 10px;
-  border: 2px solid white;
-  border-radius: 10px;
-  padding: 10px;
-  list-style: none;
-  background: rgba(255,255,255,0.2);
-  background: white;
-color: blue;
-  
-  opacity: 0;
-  transform: translateY(50px);
+# Published to parent scope for install step.
+set(FLUTTER_LIBRARY ${FLUTTER_LIBRARY} PARENT_SCOPE)
+set(FLUTTER_ICU_DATA_FILE "${EPHEMERAL_DIR}/icudtl.dat" PARENT_SCOPE)
+set(PROJECT_BUILD_DIR "${PROJECT_DIR}/build/" PARENT_SCOPE)
+set(AOT_LIBRARY "${PROJECT_DIR}/build/windows/app.so" PARENT_SCOPE)
 
-  transition:
-    opacity 0.5s,
-    transform 0.5s;
-}
-    
-    li.show {
-  opacity: 1;
-  transform: translateY(0);
-}
-    
-  </style>
-</head>
+list(APPEND FLUTTER_LIBRARY_HEADERS
+  "flutter_export.h"
+  "flutter_windows.h"
+  "flutter_messenger.h"
+  "flutter_plugin_registrar.h"
+  "flutter_texture_registrar.h"
+)
+list(TRANSFORM FLUTTER_LIBRARY_HEADERS PREPEND "${EPHEMERAL_DIR}/")
+add_library(flutter INTERFACE)
+target_include_directories(flutter INTERFACE
+  "${EPHEMERAL_DIR}"
+)
+target_link_libraries(flutter INTERFACE "${FLUTTER_LIBRARY}.lib")
+add_dependencies(flutter flutter_assemble)
 
-<body>
+# === Wrapper ===
+list(APPEND CPP_WRAPPER_SOURCES_CORE
+  "core_implementations.cc"
+  "standard_codec.cc"
+)
+list(TRANSFORM CPP_WRAPPER_SOURCES_CORE PREPEND "${WRAPPER_ROOT}/")
+list(APPEND CPP_WRAPPER_SOURCES_PLUGIN
+  "plugin_registrar.cc"
+)
+list(TRANSFORM CPP_WRAPPER_SOURCES_PLUGIN PREPEND "${WRAPPER_ROOT}/")
+list(APPEND CPP_WRAPPER_SOURCES_APP
+  "flutter_engine.cc"
+  "flutter_view_controller.cc"
+)
+list(TRANSFORM CPP_WRAPPER_SOURCES_APP PREPEND "${WRAPPER_ROOT}/")
 
-  <div class="box">
+# Wrapper sources needed for a plugin.
+add_library(flutter_wrapper_plugin STATIC
+  ${CPP_WRAPPER_SOURCES_CORE}
+  ${CPP_WRAPPER_SOURCES_PLUGIN}
+)
+apply_standard_settings(flutter_wrapper_plugin)
+set_target_properties(flutter_wrapper_plugin PROPERTIES
+  POSITION_INDEPENDENT_CODE ON)
+set_target_properties(flutter_wrapper_plugin PROPERTIES
+  CXX_VISIBILITY_PRESET hidden)
+target_link_libraries(flutter_wrapper_plugin PUBLIC flutter)
+target_include_directories(flutter_wrapper_plugin PUBLIC
+  "${WRAPPER_ROOT}/include"
+)
+add_dependencies(flutter_wrapper_plugin flutter_assemble)
 
-   <h1>残り時間</h1>
+# Wrapper sources needed for the runner.
+add_library(flutter_wrapper_app STATIC
+  ${CPP_WRAPPER_SOURCES_CORE}
+  ${CPP_WRAPPER_SOURCES_APP}
+)
+apply_standard_settings(flutter_wrapper_app)
+target_link_libraries(flutter_wrapper_app PUBLIC flutter)
+target_include_directories(flutter_wrapper_app PUBLIC
+  "${WRAPPER_ROOT}/include"
+)
+add_dependencies(flutter_wrapper_app flutter_assemble)
 
-<p id="todayTime"></p>
-
-<p>寝る時間を選んでください</p>
-
-<input type="time" id="sleepTime">
-
-    <button onclick="showSuggestions()">
-      残り時間で出来ること
-    </button>
-
-    <div id="result"></div>
-
-  </div>
-
-  <script>
-
-    // 行動データ
-    const actions = [
-      { name: "アニメ1話", minutes: 24 },
-      { name: "散歩", minutes: 30 },
-      { name: "筋トレ", minutes: 15 },
-      { name: "課題", minutes: 90 },
-      { name: "読書", minutes: 20 },
-      { name: "部会", minutes: 10 }
-    ];
-
-    // ボタンを押した時に動く
-    function showSuggestions() {// 現在時刻取得
-const now = new Date();
-
-const nowHours = now.getHours();
-const nowMinutes = now.getMinutes();
-
-// 今を分に変換
-const currentTotal =
-  nowHours * 60 + nowMinutes;
-
-// 24:00 は 1440分
-const remainingToday =
-  1440 - currentTotal;
-      
-const todayHours =
-  Math.floor(remainingToday / 60);
-
-const todayMinutes =
-  remainingToday % 60;
-      
-      document.getElementById("todayTime")
-  .innerText =
-  `今日終了まで ${todayHours}時間${todayMinutes}分`;
-      // 入力された時間を取得
-      const sleepTime =
-            document.getElementById("sleepTime").value;
-
-      // 入力されてなかったら終了
-      if (!sleepTime) {
-        alert("寝る時間を選んでください");
-        return;
-      }
-
-      // 入力時間を分解
-      const parts = sleepTime.split(":");
-
-      const sleepHours = Number(parts[0]);
-      const sleepMinutes = Number(parts[1]);
-
-      // 寝る時間を分に変換
-      const sleepTotal =
-        sleepHours * 60 + sleepMinutes;
-
-      // 残り時間
-      const remaining =
-        sleepTotal - currentTotal;
-      
-　　　const remainingHours =
- 　　　 Math.floor(remaining / 60);
-
-　　　const remainingMinutes =
-  　　　remaining % 60;
-      
-      let comment = "";
-
-if (remaining <= 30) {
-
-  comment =
-    "あと三十分”も”ある";
-   
-
-} else if (remaining <= 90) {
-
-  comment =
-    "集中系タスクもできそうです";
-
-} else {
-
-  comment =
-    "まとまった時間があります";
-}
-      
-      // 表示用HTML
-　　　let html = `
- 　　
-    <p>
- 　 残り ${remainingHours}時間 ${remainingMinutes}分
-　　</p>
-
-  <p>
-   今日終了まで
-   ${todayHours}時間
-   ${todayMinutes}分
-  </p>
-
-<p>${comment}</p>
-
-      <h3></h3>
-       <ul>
-   `;
-      // 行動をチェック
-      actions.forEach(action => {
-
-        // できるものだけ表示
-        if (action.minutes <= remaining) {
-
-          html += `
-            <li>
-              ${action.name}
-              (${action.minutes}分)
-            </li>
-          `;
-        }
-
-      });
-
-      html += "</ul>";
-
-      // 画面に表示
-      document.getElementById("result").innerHTML = html;
-      const items =
-  document.querySelectorAll("li");
-
-const observer =
-  new IntersectionObserver(entries => {
-
-    entries.forEach(entry => {
-
-   if (entry.isIntersecting) {
-
-  entry.target.classList.add("show");
-
-} else {
-
-  entry.target.classList.remove("show");
-
-}
-
-    });
-
-  });
-
-items.forEach(item => {
-  observer.observe(item);
-});
-    }
-
-  </script>
-
-</body>
-</html>
-
+# === Flutter tool backend ===
+# _phony_ is a non-existent file to force this command to run every time,
+# since currently there's no way to get a full input/output list from the
+# flutter tool.
+set(PHONY_OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/_phony_")
+set_source_files_properties("${PHONY_OUTPUT}" PROPERTIES SYMBOLIC TRUE)
+add_custom_command(
+  OUTPUT ${FLUTTER_LIBRARY} ${FLUTTER_LIBRARY_HEADERS}
+    ${CPP_WRAPPER_SOURCES_CORE} ${CPP_WRAPPER_SOURCES_PLUGIN}
+    ${CPP_WRAPPER_SOURCES_APP}
+    ${PHONY_OUTPUT}
+  COMMAND ${CMAKE_COMMAND} -E env
+    ${FLUTTER_TOOL_ENVIRONMENT}
+    "${FLUTTER_ROOT}/packages/flutter_tools/bin/tool_backend.bat"
+      ${FLUTTER_TARGET_PLATFORM} $<CONFIG>
+  VERBATIM
+)
+add_custom_target(flutter_assemble DEPENDS
+  "${FLUTTER_LIBRARY}"
+  ${FLUTTER_LIBRARY_HEADERS}
+  ${CPP_WRAPPER_SOURCES_CORE}
+  ${CPP_WRAPPER_SOURCES_PLUGIN}
+  ${CPP_WRAPPER_SOURCES_APP}
+)

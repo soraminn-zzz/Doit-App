@@ -1,16 +1,11 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-
-import 'widgets/notification_bar.dart';
-import 'widgets/remaining_time.dart';
-import 'utils/notification_logic.dart';
+import 'dart:ui';
+import 'widgets/remaining_time.dart'; // 既存のウィジェット
+import 'widgets/task_list.dart'; // タスク画面を追加
 
 void main() {
   runApp(const MyApp());
 }
-
-// ================= APP =================
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
@@ -30,7 +25,7 @@ class MyApp extends StatelessWidget {
   }
 }
 
-// ================= MAIN =================
+// ================= ページ管理 =================
 
 class MainContainer extends StatefulWidget {
   const MainContainer({super.key});
@@ -42,429 +37,210 @@ class MainContainer extends StatefulWidget {
 class _MainContainerState extends State<MainContainer> {
   int _currentIndex = 0;
 
-  final pages = const [HomePage(), TaskPage(), FocusPage(), SettingsPage()];
+  final List<Widget> _pages = [
+    const MainScreen(),
+    const HomePage(),
+    const Scaffold(
+      body: Center(
+        child: Text("Focus"),
+      ),
+    ),
+    const Scaffold(
+      body: Center(
+        child: Text("Settings"),
+      ),
+    ),
+  ];
 
   @override
   Widget build(BuildContext context) {
+    final hour = DateTime.now().hour;
+    final isDark = hour >= 17 || hour < 5;
+
     return Scaffold(
-      body: pages[_currentIndex],
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _currentIndex,
-        onTap: (i) => setState(() => _currentIndex = i),
-        type: BottomNavigationBarType.fixed,
-        items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.home_outlined),
-            label: 'Home',
+      extendBody: true,
+      body: IndexedStack(
+        index: _currentIndex,
+        children: _pages,
+      ),
+      bottomNavigationBar: Container(
+        margin: const EdgeInsets.fromLTRB(40, 0, 40, 24),
+        decoration: BoxDecoration(
+          color: (isDark ? Colors.white : Colors.black).withOpacity(0.05),
+          borderRadius: BorderRadius.circular(30),
+          border: Border.all(
+            color: (isDark ? Colors.white : Colors.black).withOpacity(0.1),
+            width: 0.5,
           ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.check_circle_outline),
-            label: 'Tasks',
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(30),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+            child: BottomNavigationBar(
+              currentIndex: _currentIndex,
+              onTap: (index) => setState(() => _currentIndex = index),
+              type: BottomNavigationBarType.fixed,
+              backgroundColor: Colors.transparent,
+              elevation: 0,
+              showSelectedLabels: false,
+              showUnselectedLabels: false,
+              selectedItemColor: isDark ? Colors.white : const Color(0xFF151B54),
+              unselectedItemColor: (isDark ? Colors.white : Colors.black).withOpacity(0.3),
+              items: const [
+                BottomNavigationBarItem(icon: Icon(Icons.home_outlined), label: ''),
+                BottomNavigationBarItem(icon: Icon(Icons.check_circle_outline), label: ''),
+                BottomNavigationBarItem(icon: Icon(Icons.timer_outlined), label: ''),
+                BottomNavigationBarItem(icon: Icon(Icons.settings_outlined), label: ''),
+              ],
+            ),
           ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.timer_outlined),
-            label: 'Focus',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.settings_outlined),
-            label: 'Settings',
-          ),
-        ],
+        ),
       ),
     );
   }
 }
 
-// ================= HOME =================
+// ================= MAIN SCREEN =================
 
-class HomePage extends StatefulWidget {
-  const HomePage({super.key});
+class MainScreen extends StatefulWidget {
+  const MainScreen({super.key});
 
   @override
-  State<HomePage> createState() => _HomePageState();
+  State<MainScreen> createState() => _MainScreenState();
 }
 
-class _HomePageState extends State<HomePage> {
-  List<Map<String, dynamic>> userTasks = [];
-  String notificationMessage = '';
+class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
+  late final AnimationController _bgController;
+  late final AnimationController _floatController;
 
   @override
   void initState() {
     super.initState();
-    _loadTasks();
+    _bgController = AnimationController(
+      duration: const Duration(seconds: 15),
+      vsync: this,
+    )..repeat(reverse: true);
+
+    _floatController = AnimationController(
+      duration: const Duration(seconds: 10),
+      vsync: this,
+    )..repeat(reverse: true);
   }
 
-  Future<void> _loadTasks() async {
-    final prefs = await SharedPreferences.getInstance();
-    final raw = prefs.getString('tasks');
-
-    if (raw == null || raw.isEmpty) return;
-
-    final decoded = jsonDecode(raw) as List;
-
-    setState(() {
-      userTasks = decoded.map((e) => Map<String, dynamic>.from(e)).toList();
-    });
-  }
-
-  int _calculateRemainingMinutes() {
-    final now = DateTime.now();
-    return 1440 - (now.hour * 60 + now.minute);
-  }
-
-  void _showPageNotification() {
-    final remaining = _calculateRemainingMinutes();
-
-    final today = DateTime.now();
-    final todayKey =
-        "${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}";
-
-    final visibleTasks = userTasks.where((task) {
-      final isFixed = task['fixed'] == true;
-      final date = task['date']?.toString() ?? '';
-      return isFixed || date == todayKey;
-    }).toList();
-
-    final msg = buildNotification(
-      remainingMinutes: remaining,
-      tasks: visibleTasks,
-    );
-
-    setState(() => notificationMessage = msg);
-
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+  @override
+  void dispose() {
+    _bgController.dispose();
+    _floatController.dispose();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [Colors.indigo.shade900, Colors.indigo.shade600],
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
+    final hour = DateTime.now().hour;
+    final isDark = hour >= 17 || hour < 5;
+
+    final themeStart = (hour >= 5 && hour < 12)
+        ? [const Color(0xFFF4F7F9), const Color(0xFFE2ECF4)]
+        : (hour >= 12 && hour < 17)
+            ? [const Color(0xFFE6F6FF), const Color(0xFFCBEBFC)]
+            : [const Color(0xFF1E1E2E), const Color(0xFF2A2A3D)];
+
+    final themeEnd = (hour >= 5 && hour < 12)
+        ? [const Color(0xFFFBF4EC), const Color(0xFFF3E1D3)]
+        : (hour >= 12 && hour < 17)
+            ? [const Color(0xFFEDF7ED), const Color(0xFFD0EBD2)]
+            : [const Color(0xFF252538), const Color(0xFF1A1A2E)];
+
+    return AnimatedBuilder(
+      animation: Listenable.merge([_bgController, _floatController]),
+      builder: (context, child) {
+        final t = _bgController.value;
+        return Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                Color.lerp(themeStart[0], themeEnd[0], t)!,
+                Color.lerp(themeStart[1], themeEnd[1], t)!,
+              ],
+            ),
           ),
-        ),
-        child: SafeArea(
-          child: SingleChildScrollView(
+          child: child,
+        );
+      },
+      child: Stack(
+        children: [
+          Positioned(
+            bottom: 10,
+            left: 0,
+            right: 0,
+            child: Center(
+              child: ImageFiltered(
+                imageFilter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
+                child: Text(
+                  'DO IT',
+                  style: TextStyle(
+                    fontSize: 180,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 20,
+                    color: isDark
+                        ? Colors.white.withOpacity(0.15)
+                        : Colors.indigo.shade900.withOpacity(0.08),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          SafeArea(
             child: Column(
               children: [
-                const SizedBox(height: 16),
-                const NotificationBar(),
-                const SizedBox(height: 16),
-                const RemainingTimeWidget(),
-                const SizedBox(height: 16),
-                ElevatedButton(
-                  onPressed: _showPageNotification,
-                  child: const Text('通知を生成'),
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 24),
+                  child: Column(
+                    children: [
+                      Text(
+                        'D O  I T',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 8,
+                          color: isDark
+                              ? Colors.white.withOpacity(0.35)
+                              : Colors.black.withOpacity(0.4),
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        DateTime.now().toString().substring(0, 10).replaceAll('-', '.'),
+                        style: TextStyle(
+                          fontSize: 9,
+                          fontWeight: FontWeight.w300,
+                          letterSpacing: 4,
+                          color: isDark
+                              ? Colors.white.withOpacity(0.2)
+                              : Colors.black.withOpacity(0.25),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-                if (notificationMessage.isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.all(20),
-                    child: Text(
-                      notificationMessage,
-                      textAlign: TextAlign.center,
+                Expanded(
+                  child: Center(
+                    child: SingleChildScrollView(
+                      physics: const BouncingScrollPhysics(),
+                      child: Padding(
+                        padding: const EdgeInsets.only(bottom: 40),
+                        child: RemainingTimeWidget(),
+                      ),
                     ),
                   ),
+                ),
               ],
             ),
           ),
-        ),
-      ),
-    );
-  }
-}
-
-// ================= TASK =================
-
-class TaskPage extends StatefulWidget {
-  const TaskPage({super.key});
-
-  @override
-  State<TaskPage> createState() => _TaskPageState();
-}
-
-class _TaskPageState extends State<TaskPage> {
-  List<Map<String, dynamic>> tasks = [];
-
-  @override
-  void initState() {
-    super.initState();
-    _load();
-  }
-
-  Future<void> _load() async {
-    final prefs = await SharedPreferences.getInstance();
-    final raw = prefs.getString('tasks');
-
-    if (raw == null || raw.isEmpty) return;
-
-    final decoded = jsonDecode(raw);
-
-    setState(() {
-      tasks = decoded
-          .map<Map<String, dynamic>>((e) => Map<String, dynamic>.from(e))
-          .toList();
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text("Tasks")),
-      body: ListView.builder(
-        itemCount: tasks.length,
-        itemBuilder: (context, index) {
-          final task = tasks[index];
-          final isFixed = task['fixed'] == true;
-
-          return ListTile(
-            leading: Icon(isFixed ? Icons.repeat : Icons.task_alt),
-            title: Text(task['name'] ?? ''),
-            subtitle: Text(
-              isFixed
-                  ? "固定 / ${task['minutes']}分"
-                  : "${task['date']} / ${task['minutes']}分",
-            ),
-          );
-        },
-      ),
-    );
-  }
-}
-
-// ================= FOCUS =================
-
-class FocusPage extends StatelessWidget {
-  const FocusPage({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return const Scaffold(body: Center(child: Text("Focus")));
-  }
-}
-
-// ================= SETTINGS（統合完成版） =================
-
-class SettingsPage extends StatefulWidget {
-  const SettingsPage({super.key});
-
-  @override
-  State<SettingsPage> createState() => _SettingsPageState();
-}
-
-class _SettingsPageState extends State<SettingsPage> {
-  final name = TextEditingController();
-  final min = TextEditingController();
-
-  DateTime date = DateTime.now();
-  bool fixed = false;
-
-  List<Map<String, dynamic>> tasks = [];
-
-  @override
-  void initState() {
-    super.initState();
-    _loadTasks();
-  }
-
-  Future<void> _loadTasks() async {
-    final prefs = await SharedPreferences.getInstance();
-    final raw = prefs.getString('tasks');
-
-    if (raw == null || raw.isEmpty) return;
-
-    final decoded = jsonDecode(raw) as List;
-
-    setState(() {
-      tasks = decoded.map((e) => Map<String, dynamic>.from(e)).toList();
-    });
-  }
-
-  Future<void> _saveTasks() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('tasks', jsonEncode(tasks));
-  }
-
-  String fmt(DateTime d) =>
-      "${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}";
-
-  void addTask() async {
-    if (name.text.isEmpty || min.text.isEmpty) return;
-
-    setState(() {
-      tasks.add({
-        "name": name.text,
-        "minutes": int.parse(min.text),
-        "date": fmt(date),
-        "fixed": fixed,
-      });
-    });
-
-    await _saveTasks();
-
-    name.clear();
-    min.clear();
-    fixed = false;
-    date = DateTime.now();
-  }
-
-  Future<void> _pickDate() async {
-    final d = await showDatePicker(
-      context: context,
-      firstDate: DateTime(2020),
-      lastDate: DateTime(2100),
-      initialDate: date,
-    );
-
-    if (d != null) setState(() => date = d);
-  }
-
-  Future<void> _clearTasks(BuildContext context) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('tasks');
-
-    setState(() => tasks.clear());
-
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text("タスクを削除しました")));
-  }
-
-  void _openConfession(BuildContext context) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => const ConfessionPage()),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text("Settings")),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          children: [
-            ElevatedButton.icon(
-              onPressed: () => _clearTasks(context),
-              icon: const Icon(Icons.delete_forever),
-              label: const Text("タスク全削除"),
-            ),
-
-            const SizedBox(height: 10),
-
-            ElevatedButton.icon(
-              onPressed: () => _openConfession(context),
-              icon: const Icon(Icons.church),
-              label: const Text("懺悔室へ"),
-            ),
-
-            const Divider(height: 30),
-
-            TextField(
-              controller: name,
-              decoration: const InputDecoration(labelText: "タスク名"),
-            ),
-
-            TextField(
-              controller: min,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(labelText: "時間（分）"),
-            ),
-
-            const SizedBox(height: 10),
-
-            Row(
-              children: [
-                Text(fmt(date)),
-                const SizedBox(width: 10),
-                ElevatedButton(onPressed: _pickDate, child: const Text("日付選択")),
-              ],
-            ),
-
-            SwitchListTile(
-              title: const Text("固定タスク"),
-              value: fixed,
-              onChanged: (v) => setState(() => fixed = v),
-            ),
-
-            ElevatedButton(onPressed: addTask, child: const Text("タスク追加")),
-
-            const SizedBox(height: 20),
-
-            ListView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: tasks.length,
-              itemBuilder: (context, i) {
-                final t = tasks[i];
-                final isFixed = t['fixed'] == true;
-
-                return ListTile(
-                  leading: Icon(isFixed ? Icons.repeat : Icons.task_alt),
-                  title: Text(t['name'] ?? ''),
-                  subtitle: Text(
-                    isFixed
-                        ? "固定 / ${t['minutes']}分"
-                        : "${t['date']} / ${t['minutes']}分",
-                  ),
-                );
-              },
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// ================= 懺悔室 =================
-
-class ConfessionPage extends StatefulWidget {
-  const ConfessionPage({super.key});
-
-  @override
-  State<ConfessionPage> createState() => _ConfessionPageState();
-}
-
-class _ConfessionPageState extends State<ConfessionPage> {
-  final controller = TextEditingController();
-  String reply = "";
-
-  void confess() {
-    final text = controller.text;
-    if (text.isEmpty) return;
-
-    final responses = ["まあOK", "気づけたなら十分", "明日はもう少し楽になる", "それも経験", "悪くない選択"];
-
-    setState(() {
-      reply =
-          "「$text」\n→ ${responses[DateTime.now().second % responses.length]}";
-    });
-
-    controller.clear();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text("懺悔室")),
-      body: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          children: [
-            TextField(
-              controller: controller,
-              decoration: const InputDecoration(labelText: "懺悔を書く"),
-            ),
-            const SizedBox(height: 10),
-            ElevatedButton(onPressed: confess, child: const Text("送信")),
-            const SizedBox(height: 20),
-            if (reply.isNotEmpty) Text(reply),
-          ],
-        ),
+        ],
       ),
     );
   }

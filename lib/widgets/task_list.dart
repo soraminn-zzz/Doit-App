@@ -1,25 +1,9 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../utils/notification_logic.dart';
-import '../widgets/notification_button.dart';
-import '../widgets/notification_bar.dart';
+import '../models/task.dart';
 
-void main() {
-  runApp(const MyApp());
-}
-
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return const MaterialApp(
-      debugShowCheckedModeBanner: false,
-      home: HomePage(),
-    );
-  }
-}
+String _formatDate(DateTime dt) => "${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')}";
 
 // ================= HOME =================
 
@@ -47,11 +31,61 @@ class _HomePageState extends State<HomePage> {
 
   String currentSuggestion = "";
 
-  List<Map<String, dynamic>> userTasks = [];
+  List<Task> userTasks = [];
+  List<Task> aiTasks = [];
 
   bool showRecommendations = false;
 
   String selectedViewDate = "";
+
+  int remainingMinutes = 30;
+  final TextEditingController remainingController = TextEditingController();
+
+  int _parseMinutesFromSuggestion(String s) {
+    final reg = RegExp(r"(\d+)");
+    final m = reg.firstMatch(s);
+    if (m != null) {
+      return int.tryParse(m.group(0) ?? '') ?? remainingMinutes;
+    }
+    // If suggestion contains no explicit number, use the current remainingMinutes as the estimated duration.
+    return remainingMinutes;
+  }
+
+  Future<void> saveAiTasks() async {
+    final prefs = await SharedPreferences.getInstance();
+    final encoded = jsonEncode(aiTasks.map((t) => t.toMap()).toList());
+    await prefs.setString('ai_tasks', encoded);
+  }
+
+  Future<void> loadAiTasks() async {
+    final prefs = await SharedPreferences.getInstance();
+    final data = prefs.getString('ai_tasks');
+    if (data != null) {
+      final decoded = jsonDecode(data);
+      if (decoded is List) {
+        final loaded = decoded
+            .map((e) => Task.fromMap(Map<String, dynamic>.from(e)))
+            .toList();
+        setState(() {
+          aiTasks = loaded;
+        });
+      }
+    }
+  }
+
+  Future<void> deleteUserTask(String id) async {
+    setState(() {
+      userTasks.removeWhere((t) => t.id == id);
+    });
+    await saveTasks();
+  }
+
+  Future<void> deleteAiTask(String id) async {
+    setState(() {
+      aiTasks.removeWhere((t) => t.id == id);
+    });
+    await saveAiTasks();
+  }
 
   @override
   void initState() {
@@ -59,16 +93,28 @@ class _HomePageState extends State<HomePage> {
 
     final now = DateTime.now();
 
-    selectedViewDate =
-        "${now.year}-${now.month.toString().padLeft(2, "0")}-${now.day.toString().padLeft(2, "0")}";
+    selectedViewDate = _formatDate(now);
 
-    loadTasks();
+    remainingController.text = remainingMinutes.toString();
+
+    _initAsync();
+  }
+
+  Future<void> _initAsync() async {
+    await loadTasks();
+    await loadAiTasks();
+  }
+
+  @override
+  void dispose() {
+    remainingController.dispose();
+    super.dispose();
   }
 
   Future<void> saveTasks() async {
     final prefs = await SharedPreferences.getInstance();
-
-    await prefs.setString("tasks", jsonEncode(userTasks));
+    final encoded = jsonEncode(userTasks.map((t) => t.toMap()).toList());
+    await prefs.setString("tasks", encoded);
   }
 
   Future<void> loadTasks() async {
@@ -77,9 +123,15 @@ class _HomePageState extends State<HomePage> {
     final data = prefs.getString("tasks");
 
     if (data != null) {
-      setState(() {
-        userTasks = List<Map<String, dynamic>>.from(jsonDecode(data));
-      });
+      final decoded = jsonDecode(data);
+      if (decoded is List) {
+        final loaded = decoded
+            .map((e) => Task.fromMap(Map<String, dynamic>.from(e)))
+            .toList();
+        setState(() {
+          userTasks = loaded;
+        });
+      }
     }
   }
 
@@ -93,24 +145,29 @@ class _HomePageState extends State<HomePage> {
 
     if (pickedDate != null) {
       setState(() {
-        selectedViewDate =
-            "${pickedDate.year}-${pickedDate.month.toString().padLeft(2, "0")}-${pickedDate.day.toString().padLeft(2, "0")}";
+        selectedViewDate = _formatDate(pickedDate);
       });
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final visibleTasks = userTasks.where((task) {
-      return task["fixed"] == true || task["date"] == selectedViewDate;
+    final visibleUserTasks = userTasks.where((task) {
+      return task.fixed == true || task.date == selectedViewDate;
     }).toList();
 
-    final noTasks = visibleTasks.isEmpty;
+    final noTasks = visibleUserTasks.isEmpty && aiTasks.where((t) => t.date == selectedViewDate).isEmpty;
+
+    final quickTasks = visibleUserTasks.where((t) => t.minutes <= 10).toList();
+    final withinTasks = aiTasks.where((t) => t.date == selectedViewDate && t.minutes <= remainingMinutes).toList();
+    final addedTasks = visibleUserTasks;
 
     return Scaffold(
-      backgroundColor: Colors.grey[200],
+      backgroundColor: Colors.transparent,
 
       appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
         title: const Text("残り時間アプリ"),
 
         actions: [
@@ -130,7 +187,7 @@ class _HomePageState extends State<HomePage> {
                 ),
               );
 
-              loadTasks();
+            await loadTasks();
             },
           ),
 
@@ -156,7 +213,7 @@ class _HomePageState extends State<HomePage> {
 
             // ===== DO IT =====
             ElevatedButton(
-              onPressed: () {
+              onPressed: () async {
                 setState(() {
                   showRecommendations = true;
 
@@ -165,10 +222,24 @@ class _HomePageState extends State<HomePage> {
                   currentSuggestion = aiSuggestions.first;
                 });
 
-                ScaffoldMessenger.of(
-                  context,
-                ).showSnackBar(const SnackBar(content: Text("AIが提案を生成しました")));
-              },
+                  // Create an AI task and persist it separately
+                  final minutes = _parseMinutesFromSuggestion(currentSuggestion);
+                  final aiTask = Task(
+                    id: DateTime.now().microsecondsSinceEpoch.toString(),
+                    name: currentSuggestion,
+                    minutes: minutes,
+                    fixed: false,
+                    date: selectedViewDate,
+                  );
+
+                  setState(() {
+                    aiTasks.add(aiTask);
+                  });
+
+                  await saveAiTasks();
+
+                  if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("AIが提案を生成しました")));
+                },
 
               style: ElevatedButton.styleFrom(
                 padding: const EdgeInsets.symmetric(
@@ -237,87 +308,253 @@ class _HomePageState extends State<HomePage> {
               const SizedBox(height: 30),
             ],
 
-            // ===== 今日のタスク =====
-            if (visibleTasks.isNotEmpty)
+            // ===== 残り時間設定 =====
+            Card(
+              margin: const EdgeInsets.only(bottom: 12),
+
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(15),
+              ),
+
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+
+                child: Row(
+                  children: [
+                    const Expanded(
+                      child: Text(
+                        '残り時間（分）',
+                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+
+                    SizedBox(
+                      width: 110,
+                      child: TextField(
+                        controller: remainingController,
+                        keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(
+                          border: OutlineInputBorder(),
+                          isDense: true,
+                          contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+                        ),
+                        onSubmitted: (val) {
+                          final v = int.tryParse(val) ?? remainingMinutes;
+                          setState(() {
+                            remainingMinutes = v;
+                          });
+                        },
+                      ),
+                    ),
+
+                    const SizedBox(width: 8),
+
+                    ElevatedButton(
+                      onPressed: () async {
+                        final v = int.tryParse(remainingController.text) ?? remainingMinutes;
+                        setState(() => remainingMinutes = v);
+                        // update AI tasks for the selected date to reflect applied remaining time
+                        setState(() {
+                          for (int i = 0; i < aiTasks.length; i++) {
+                            if (aiTasks[i].date == selectedViewDate) {
+                              aiTasks[i] = aiTasks[i].copyWith(minutes: remainingMinutes);
+                            }
+                          }
+                        });
+                        await saveAiTasks();
+                      },
+                      child: const Text('適用'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 12),
+
+            // ===== 今できるタスク =====
+            if (quickTasks.isNotEmpty) ...[
               const Align(
                 alignment: Alignment.centerLeft,
                 child: Text(
-                  "今日のタスク",
-                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                  '今できるタスク',
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                 ),
               ),
 
-            const SizedBox(height: 15),
+              const SizedBox(height: 10),
 
-            ...visibleTasks.map((task) {
-              return Card(
-                margin: const EdgeInsets.only(bottom: 12),
+              ...quickTasks.map((task) {
+                return Card(
+                  margin: const EdgeInsets.only(bottom: 12),
 
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(15),
-                ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(15),
+                  ),
 
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
 
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
 
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-
-                          children: [
-                            Text(
-                              task["name"],
-                              style: const TextStyle(
-                                fontSize: 22,
-                                fontWeight: FontWeight.bold,
+                            children: [
+                              Text(
+                                task.name,
+                                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                               ),
-                            ),
 
-                            const SizedBox(height: 6),
+                              const SizedBox(height: 6),
 
-                            Text(
-                              "${task["minutes"]}分",
-                              style: TextStyle(
-                                fontSize: 16,
-                                color: Colors.grey[700],
-                              ),
-                            ),
+                              Text('${task.minutes}分', style: TextStyle(fontSize: 14, color: Colors.grey[700])),
 
-                            if (task["fixed"])
-                              Padding(
-                                padding: const EdgeInsets.only(top: 6),
-
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 10,
-                                    vertical: 4,
-                                  ),
-
-                                  decoration: BoxDecoration(
-                                    color: Colors.blue[100],
-                                    borderRadius: BorderRadius.circular(20),
-                                  ),
-
-                                  child: const Text(
-                                    "固定タスク",
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                    ),
+                              if (task.fixed)
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 6),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                    decoration: BoxDecoration(color: Colors.blue[100], borderRadius: BorderRadius.circular(20)),
+                                    child: const Text('固定タスク', style: TextStyle(fontWeight: FontWeight.bold)),
                                   ),
                                 ),
-                              ),
-                          ],
+                            ],
+                          ),
                         ),
-                      ),
-                    ],
+
+                        IconButton(
+                          icon: const Icon(Icons.delete_outline),
+                          color: Colors.redAccent,
+                          tooltip: 'タスクを削除',
+                          onPressed: () async {
+                            // delete user task
+                            await deleteUserTask(task.id);
+                          },
+                        ),
+                      ],
+                    ),
                   ),
+                );
+              }),
+
+              const SizedBox(height: 20),
+            ],
+
+            // ===== 残り時間内でできるタスク =====
+            if (withinTasks.isNotEmpty) ...[
+              const Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  '残り時間内でできるタスク',
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                 ),
-              );
-            }),
+              ),
+
+              const SizedBox(height: 10),
+
+              ...withinTasks.map((task) {
+                return Card(
+                  margin: const EdgeInsets.only(bottom: 12),
+
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(task.name, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                              const SizedBox(height: 6),
+                              Text('${task.minutes}分', style: TextStyle(fontSize: 14, color: Colors.grey[700])),
+                              if (task.fixed)
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 6),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                    decoration: BoxDecoration(color: Colors.blue[100], borderRadius: BorderRadius.circular(20)),
+                                    child: const Text('固定タスク', style: TextStyle(fontWeight: FontWeight.bold)),
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+
+                        IconButton(
+                          icon: const Icon(Icons.delete_outline),
+                          color: Colors.redAccent,
+                          tooltip: 'AIタスクを削除',
+                          onPressed: () async {
+                            await deleteAiTask(task.id);
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }),
+
+              const SizedBox(height: 20),
+            ],
+
+            // ===== 追加したタスク =====
+            if (addedTasks.isNotEmpty) ...[
+              const Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  '追加したタスク',
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                ),
+              ),
+
+              const SizedBox(height: 10),
+
+              ...addedTasks.map((task) {
+                return Card(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(task.name, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                              const SizedBox(height: 6),
+                              Text('${task.minutes}分', style: TextStyle(fontSize: 14, color: Colors.grey[700])),
+                              if (task.fixed)
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 6),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                    decoration: BoxDecoration(color: Colors.blue[100], borderRadius: BorderRadius.circular(20)),
+                                    child: const Text('固定タスク', style: TextStyle(fontWeight: FontWeight.bold)),
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+
+                        IconButton(
+                          icon: const Icon(Icons.delete_outline),
+                          color: Colors.redAccent,
+                          tooltip: 'タスクを削除',
+                          onPressed: () async {
+                            await deleteUserTask(task.id);
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }),
+            ],
           ],
         ),
       ),
@@ -328,7 +565,7 @@ class _HomePageState extends State<HomePage> {
 // ================= SETTINGS =================
 
 class SettingsPage extends StatefulWidget {
-  final List<Map<String, dynamic>> userTasks;
+  final List<Task> userTasks;
 
   const SettingsPage({super.key, required this.userTasks});
 
@@ -338,30 +575,31 @@ class SettingsPage extends StatefulWidget {
 
 class _SettingsPageState extends State<SettingsPage> {
   final taskNameController = TextEditingController();
-
   final taskMinutesController = TextEditingController();
 
   bool fixedTask = false;
-
-  String selectedTaskDate = "";
-
-  List<Map<String, dynamic>> tasks = [];
+  String selectedTaskDate = '';
+  List<Task> tasks = [];
 
   @override
   void initState() {
     super.initState();
-    tasks = widget.userTasks;
-
+    tasks = widget.userTasks.map((t) => t).toList();
     final now = DateTime.now();
+    selectedTaskDate = _formatDate(now);
+  }
 
-    selectedTaskDate =
-        "${now.year}-${now.month.toString().padLeft(2, "0")}-${now.day.toString().padLeft(2, "0")}";
+  @override
+  void dispose() {
+    taskNameController.dispose();
+    taskMinutesController.dispose();
+    super.dispose();
   }
 
   Future<void> saveTasks() async {
     final prefs = await SharedPreferences.getInstance();
-
-    await prefs.setString("tasks", jsonEncode(tasks));
+    final encoded = jsonEncode(tasks.map((t) => t.toMap()).toList());
+    await prefs.setString('tasks', encoded);
   }
 
   Future<void> selectTaskDate() async {
@@ -371,128 +609,92 @@ class _SettingsPageState extends State<SettingsPage> {
       firstDate: DateTime(2020),
       lastDate: DateTime(2100),
     );
-
     if (pickedDate != null) {
       setState(() {
         selectedTaskDate =
-            "${pickedDate.year}-${pickedDate.month.toString().padLeft(2, "0")}-${pickedDate.day.toString().padLeft(2, "0")}";
+            "${pickedDate.year}-${pickedDate.month.toString().padLeft(2, '0')}-${pickedDate.day.toString().padLeft(2, '0')}";
       });
     }
   }
 
-  void addTask() {
+  Future<void> addTask() async {
     final name = taskNameController.text.trim();
+    final minutesText = taskMinutesController.text.trim();
+    if (name.isEmpty || minutesText.isEmpty) return;
 
-    final minutes = taskMinutesController.text.trim();
+    final minutes = int.tryParse(minutesText) ?? 0;
 
-    if (name.isEmpty || minutes.isEmpty) {
-      return;
-    }
+    final newTask = Task(
+      id: DateTime.now().microsecondsSinceEpoch.toString(),
+      name: name,
+      minutes: minutes,
+      fixed: fixedTask,
+      date: selectedTaskDate,
+    );
 
     setState(() {
-      tasks.add({
-        "name": name,
-        "minutes": int.parse(minutes),
-        "date": selectedTaskDate,
-        "fixed": fixedTask,
-      });
+      tasks.add(newTask);
     });
 
-    saveTasks();
-
+    await saveTasks();
     taskNameController.clear();
     taskMinutesController.clear();
 
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text("タスク追加完了")));
+    if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('タスク追加完了')));
+    // After adding, close settings to return to task list
+    if (mounted) Navigator.pop(context);
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.grey[200],
-
-      appBar: AppBar(title: const Text("設定")),
-
+      appBar: AppBar(title: const Text('設定')),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
-
         child: Column(
           children: [
-            const Text(
-              "タスク登録",
-              style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
-            ),
-
+            const Text('タスク登録', style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold)),
             const SizedBox(height: 20),
-
             TextField(
               controller: taskNameController,
-
               decoration: const InputDecoration(
-                labelText: "タスク名",
+                labelText: 'タスク名',
                 border: OutlineInputBorder(),
                 filled: true,
                 fillColor: Colors.white,
               ),
             ),
-
             const SizedBox(height: 15),
-
             TextField(
               controller: taskMinutesController,
               keyboardType: TextInputType.number,
-
               decoration: const InputDecoration(
-                labelText: "想定時間（分）",
+                labelText: '想定時間（分）',
                 border: OutlineInputBorder(),
                 filled: true,
                 fillColor: Colors.white,
               ),
             ),
-
             const SizedBox(height: 15),
-
             ListTile(
               tileColor: Colors.white,
-
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-
-              title: const Text("タスクの日付"),
-
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              title: const Text('タスクの日付'),
               subtitle: Text(selectedTaskDate),
-
               trailing: const Icon(Icons.calendar_month),
-
               onTap: selectTaskDate,
             ),
-
             const SizedBox(height: 10),
-
             CheckboxListTile(
               value: fixedTask,
-
-              title: const Text("固定タスク"),
-
+              title: const Text('固定タスク'),
               tileColor: Colors.white,
-
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-
-              onChanged: (value) {
-                setState(() {
-                  fixedTask = value!;
-                });
-              },
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              onChanged: (value) => setState(() => fixedTask = value ?? false),
             ),
-
             const SizedBox(height: 15),
-
-            ElevatedButton(onPressed: addTask, child: const Text("タスク追加")),
+            ElevatedButton(onPressed: addTask, child: const Text('タスク追加')),
           ],
         ),
       ),
@@ -509,22 +711,14 @@ class ConfessionPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.grey[900],
-
-      appBar: AppBar(title: const Text("懺悔室"), backgroundColor: Colors.black),
-
+      appBar: AppBar(title: const Text('懺悔室'), backgroundColor: Colors.black),
       body: const Center(
         child: Padding(
           padding: EdgeInsets.all(30),
-
           child: Text(
-            "ここに今日サボったことを書きなさい…",
+            'ここに今日サボったことを書きなさい…',
             textAlign: TextAlign.center,
-
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 28,
-              fontWeight: FontWeight.bold,
-            ),
+            style: TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold),
           ),
         ),
       ),
