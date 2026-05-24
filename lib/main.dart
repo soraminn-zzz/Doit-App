@@ -116,12 +116,14 @@ class _HomePageState extends State<HomePage> {
     final remaining = _calculateRemainingMinutes();
 
     final today = DateTime.now();
+
     final todayKey =
         "${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}";
 
     final visibleTasks = userTasks.where((task) {
       final isFixed = task['fixed'] == true;
       final date = task['date']?.toString() ?? '';
+
       return isFixed || date == todayKey;
     }).toList();
 
@@ -130,7 +132,9 @@ class _HomePageState extends State<HomePage> {
       tasks: visibleTasks,
     );
 
-    setState(() => notificationMessage = msg);
+    setState(() {
+      notificationMessage = msg;
+    });
 
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
   }
@@ -151,14 +155,20 @@ class _HomePageState extends State<HomePage> {
             child: Column(
               children: [
                 const SizedBox(height: 16),
+
                 const NotificationBar(),
+
                 const SizedBox(height: 16),
+
                 const RemainingTimeWidget(),
+
                 const SizedBox(height: 16),
+
                 ElevatedButton(
                   onPressed: _showPageNotification,
                   child: const Text('通知を生成'),
                 ),
+
                 if (notificationMessage.isNotEmpty)
                   Padding(
                     padding: const EdgeInsets.all(20),
@@ -196,36 +206,88 @@ class _TaskPageState extends State<TaskPage> {
 
   Future<void> _load() async {
     final prefs = await SharedPreferences.getInstance();
+
     final raw = prefs.getString('tasks');
 
     if (raw == null || raw.isEmpty) return;
 
-    final decoded = jsonDecode(raw);
+    final decoded = jsonDecode(raw) as List;
 
     setState(() {
-      tasks = decoded
-          .map<Map<String, dynamic>>((e) => Map<String, dynamic>.from(e))
-          .toList();
+      tasks = decoded.map((e) => Map<String, dynamic>.from(e)).toList();
     });
+  }
+
+  // ================= 保存 =================
+
+  Future<void> _save() async {
+    final prefs = await SharedPreferences.getInstance();
+
+    await prefs.setString('tasks', jsonEncode(tasks));
+  }
+
+  // ================= 削除 =================
+
+  Future<void> _deleteTask(int index) async {
+    setState(() {
+      tasks.removeAt(index);
+    });
+
+    await _save();
+
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text("タスクを削除しました")));
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text("Tasks")),
+
       body: ListView.builder(
         itemCount: tasks.length,
-        itemBuilder: (context, index) {
-          final task = tasks[index];
-          final isFixed = task['fixed'] == true;
 
-          return ListTile(
-            leading: Icon(isFixed ? Icons.repeat : Icons.task_alt),
-            title: Text(task['name'] ?? ''),
-            subtitle: Text(
-              isFixed
-                  ? "固定 / ${task['minutes']}分"
-                  : "${task['date']} / ${task['minutes']}分",
+        itemBuilder: (context, i) {
+          final t = tasks[i];
+
+          final fixed = t['fixed'] == true;
+
+          return Container(
+            margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.08),
+              border: Border.all(color: Colors.white),
+              borderRadius: BorderRadius.circular(12),
+            ),
+
+            child: ListTile(
+              leading: Icon(
+                fixed ? Icons.repeat : Icons.task_alt,
+                color: Colors.white,
+              ),
+
+              title: Text(
+                t['name'] ?? '',
+                style: const TextStyle(color: Colors.white),
+              ),
+
+              subtitle: Text(
+                fixed
+                    ? "固定 / ${t['minutes']}分"
+                    : "${t['date']} / ${t['minutes']}分",
+                style: const TextStyle(color: Colors.white70),
+              ),
+
+              // ================= 削除ボタン =================
+              trailing: IconButton(
+                icon: const Icon(Icons.delete, color: Colors.red),
+
+                onPressed: () {
+                  _deleteTask(i);
+                },
+              ),
             ),
           );
         },
@@ -236,16 +298,227 @@ class _TaskPageState extends State<TaskPage> {
 
 // ================= FOCUS =================
 
-class FocusPage extends StatelessWidget {
+class FocusPage extends StatefulWidget {
   const FocusPage({super.key});
 
   @override
+  State<FocusPage> createState() => _FocusPageState();
+}
+
+class _FocusPageState extends State<FocusPage> {
+  List<Map<String, dynamic>> tasks = [];
+
+  Map<String, dynamic>? selectedTask;
+
+  int remainingSeconds = 0;
+
+  bool isRunning = false;
+
+  @override
+  void initState() {
+    super.initState();
+
+    _loadTasks();
+
+    _loadTimerState();
+  }
+
+  Future<void> _loadTasks() async {
+    final prefs = await SharedPreferences.getInstance();
+
+    final raw = prefs.getString('tasks');
+
+    if (raw == null || raw.isEmpty) return;
+
+    final decoded = jsonDecode(raw) as List;
+
+    setState(() {
+      tasks = decoded.map((e) => Map<String, dynamic>.from(e)).toList();
+    });
+  }
+
+  Future<void> _saveTimerState() async {
+    final prefs = await SharedPreferences.getInstance();
+
+    await prefs.setString(
+      'focus_timer',
+      jsonEncode({
+        "selectedTask": selectedTask,
+        "remainingSeconds": remainingSeconds,
+        "isRunning": isRunning,
+      }),
+    );
+  }
+
+  Future<void> _loadTimerState() async {
+    final prefs = await SharedPreferences.getInstance();
+
+    final raw = prefs.getString('focus_timer');
+
+    if (raw == null || raw.isEmpty) return;
+
+    final data = jsonDecode(raw);
+
+    setState(() {
+      selectedTask = data["selectedTask"] != null
+          ? Map<String, dynamic>.from(data["selectedTask"])
+          : null;
+
+      remainingSeconds = data["remainingSeconds"] ?? 0;
+
+      isRunning = false;
+    });
+  }
+
+  void _selectTask(Map<String, dynamic> task) {
+    setState(() {
+      selectedTask = task;
+
+      remainingSeconds = (task['minutes'] ?? 0) * 60;
+
+      isRunning = false;
+    });
+
+    _saveTimerState();
+  }
+
+  void _startTimer() {
+    if (selectedTask == null) return;
+
+    setState(() {
+      isRunning = true;
+    });
+
+    _saveTimerState();
+
+    Future.doWhile(() async {
+      if (!isRunning || remainingSeconds <= 0) {
+        return false;
+      }
+
+      await Future.delayed(const Duration(seconds: 1));
+
+      setState(() {
+        remainingSeconds--;
+      });
+
+      _saveTimerState();
+
+      return true;
+    });
+  }
+
+  void _stopTimer() {
+    setState(() {
+      isRunning = false;
+    });
+
+    _saveTimerState();
+  }
+
+  String _format(int s) {
+    final m = s ~/ 60;
+
+    final sec = s % 60;
+
+    return "${m.toString().padLeft(2, '0')}:${sec.toString().padLeft(2, '0')}";
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return const Scaffold(body: Center(child: Text("Focus")));
+    return Scaffold(
+      appBar: AppBar(title: const Text("Focus Timer")),
+
+      body: Column(
+        children: [
+          Expanded(
+            child: ListView.builder(
+              itemCount: tasks.length,
+              itemBuilder: (context, i) {
+                final t = tasks[i];
+
+                return Container(
+                  margin: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
+
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.08),
+                    border: Border.all(color: Colors.white),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+
+                  child: ListTile(
+                    title: Text(
+                      t['name'] ?? '',
+                      style: const TextStyle(color: Colors.white),
+                    ),
+
+                    subtitle: Text(
+                      "${t['minutes']}分",
+                      style: const TextStyle(color: Colors.white70),
+                    ),
+
+                    trailing: ElevatedButton(
+                      onPressed: () => _selectTask(t),
+                      child: const Text("選択"),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+
+          if (selectedTask != null)
+            Padding(
+              padding: const EdgeInsets.all(16),
+
+              child: Column(
+                children: [
+                  Text(
+                    selectedTask!['name'],
+                    style: const TextStyle(fontSize: 18),
+                  ),
+
+                  const SizedBox(height: 10),
+
+                  Text(
+                    _format(remainingSeconds),
+                    style: const TextStyle(
+                      fontSize: 100,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+
+                  const SizedBox(height: 10),
+
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      ElevatedButton(
+                        onPressed: _startTimer,
+                        child: const Text("Start"),
+                      ),
+
+                      const SizedBox(width: 20),
+
+                      ElevatedButton(
+                        onPressed: _stopTimer,
+                        child: const Text("Stop"),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
   }
 }
 
-// ================= SETTINGS（統合完成版） =================
+// ================= SETTINGS =================
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
@@ -256,9 +529,11 @@ class SettingsPage extends StatefulWidget {
 
 class _SettingsPageState extends State<SettingsPage> {
   final name = TextEditingController();
+
   final min = TextEditingController();
 
   DateTime date = DateTime.now();
+
   bool fixed = false;
 
   List<Map<String, dynamic>> tasks = [];
@@ -266,11 +541,13 @@ class _SettingsPageState extends State<SettingsPage> {
   @override
   void initState() {
     super.initState();
+
     _loadTasks();
   }
 
   Future<void> _loadTasks() async {
     final prefs = await SharedPreferences.getInstance();
+
     final raw = prefs.getString('tasks');
 
     if (raw == null || raw.isEmpty) return;
@@ -284,11 +561,13 @@ class _SettingsPageState extends State<SettingsPage> {
 
   Future<void> _saveTasks() async {
     final prefs = await SharedPreferences.getInstance();
+
     await prefs.setString('tasks', jsonEncode(tasks));
   }
 
-  String fmt(DateTime d) =>
-      "${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}";
+  String fmt(DateTime d) {
+    return "${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}";
+  }
 
   void addTask() async {
     if (name.text.isEmpty || min.text.isEmpty) return;
@@ -305,8 +584,11 @@ class _SettingsPageState extends State<SettingsPage> {
     await _saveTasks();
 
     name.clear();
+
     min.clear();
+
     fixed = false;
+
     date = DateTime.now();
   }
 
@@ -318,18 +600,11 @@ class _SettingsPageState extends State<SettingsPage> {
       initialDate: date,
     );
 
-    if (d != null) setState(() => date = d);
-  }
-
-  Future<void> _clearTasks(BuildContext context) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('tasks');
-
-    setState(() => tasks.clear());
-
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text("タスクを削除しました")));
+    if (d != null) {
+      setState(() {
+        date = d;
+      });
+    }
   }
 
   void _openConfession(BuildContext context) {
@@ -343,18 +618,12 @@ class _SettingsPageState extends State<SettingsPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text("Settings")),
+
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
+
         child: Column(
           children: [
-            ElevatedButton.icon(
-              onPressed: () => _clearTasks(context),
-              icon: const Icon(Icons.delete_forever),
-              label: const Text("タスク全削除"),
-            ),
-
-            const SizedBox(height: 10),
-
             ElevatedButton.icon(
               onPressed: () => _openConfession(context),
               icon: const Icon(Icons.church),
@@ -379,7 +648,9 @@ class _SettingsPageState extends State<SettingsPage> {
             Row(
               children: [
                 Text(fmt(date)),
+
                 const SizedBox(width: 10),
+
                 ElevatedButton(onPressed: _pickDate, child: const Text("日付選択")),
               ],
             ),
@@ -387,32 +658,14 @@ class _SettingsPageState extends State<SettingsPage> {
             SwitchListTile(
               title: const Text("固定タスク"),
               value: fixed,
-              onChanged: (v) => setState(() => fixed = v),
+              onChanged: (v) {
+                setState(() {
+                  fixed = v;
+                });
+              },
             ),
 
             ElevatedButton(onPressed: addTask, child: const Text("タスク追加")),
-
-            const SizedBox(height: 20),
-
-            ListView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: tasks.length,
-              itemBuilder: (context, i) {
-                final t = tasks[i];
-                final isFixed = t['fixed'] == true;
-
-                return ListTile(
-                  leading: Icon(isFixed ? Icons.repeat : Icons.task_alt),
-                  title: Text(t['name'] ?? ''),
-                  subtitle: Text(
-                    isFixed
-                        ? "固定 / ${t['minutes']}分"
-                        : "${t['date']} / ${t['minutes']}分",
-                  ),
-                );
-              },
-            ),
           ],
         ),
       ),
@@ -431,13 +684,23 @@ class ConfessionPage extends StatefulWidget {
 
 class _ConfessionPageState extends State<ConfessionPage> {
   final controller = TextEditingController();
+
   String reply = "";
 
   void confess() {
     final text = controller.text;
+
     if (text.isEmpty) return;
 
-    final responses = ["まあOK", "気づけたなら十分", "明日はもう少し楽になる", "それも経験", "悪くない選択"];
+    final responses = [
+      "まあOK",
+      "気づけたなら十分",
+      "明日はもう少し楽になる",
+      "それも経験",
+      "悪くない選択",
+      "たらればの話はやめな",
+      "今日はもう寝よう",
+    ];
 
     setState(() {
       reply =
@@ -451,18 +714,25 @@ class _ConfessionPageState extends State<ConfessionPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text("懺悔室")),
+
       body: Padding(
         padding: const EdgeInsets.all(20),
+
         child: Column(
           children: [
             TextField(
               controller: controller,
-              decoration: const InputDecoration(labelText: "懺悔を書く"),
+              decoration: const InputDecoration(labelText: "懺悔をかいて"),
             ),
-            const SizedBox(height: 10),
-            ElevatedButton(onPressed: confess, child: const Text("送信")),
+
             const SizedBox(height: 20),
-            if (reply.isNotEmpty) Text(reply),
+
+            ElevatedButton(onPressed: confess, child: const Text("懺悔")),
+
+            const SizedBox(height: 20),
+
+            if (reply.isNotEmpty)
+              Text(reply, style: const TextStyle(fontSize: 24)),
           ],
         ),
       ),
