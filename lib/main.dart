@@ -97,6 +97,7 @@ class _HomePageState extends State<HomePage> {
   Future<void> _loadTasks() async {
     final prefs = await SharedPreferences.getInstance();
     final raw = prefs.getString('tasks');
+
     if (raw == null || raw.isEmpty) return;
 
     final decoded = jsonDecode(raw) as List;
@@ -106,23 +107,27 @@ class _HomePageState extends State<HomePage> {
     });
   }
 
-  int _remainingMinutes() {
+  int _calculateRemainingMinutes() {
     final now = DateTime.now();
     return 1440 - (now.hour * 60 + now.minute);
   }
 
-  void _notify() {
+  void _showPageNotification() {
+    final remaining = _calculateRemainingMinutes();
+
     final today = DateTime.now();
-    final key =
+    final todayKey =
         "${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}";
 
-    final visible = userTasks.where((t) {
-      return t['fixed'] == true || t['date'] == key;
+    final visibleTasks = userTasks.where((task) {
+      final isFixed = task['fixed'] == true;
+      final date = task['date']?.toString() ?? '';
+      return isFixed || date == todayKey;
     }).toList();
 
     final msg = buildNotification(
-      remainingMinutes: _remainingMinutes(),
-      tasks: visible,
+      remainingMinutes: remaining,
+      tasks: visibleTasks,
     );
 
     setState(() => notificationMessage = msg);
@@ -132,30 +137,38 @@ class _HomePageState extends State<HomePage> {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [Colors.indigo.shade900, Colors.indigo.shade600],
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
+    return Scaffold(
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [Colors.indigo.shade900, Colors.indigo.shade600],
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+          ),
         ),
-      ),
-      child: SafeArea(
-        child: SingleChildScrollView(
-          child: Column(
-            children: [
-              const SizedBox(height: 16),
-              const NotificationBar(),
-              const SizedBox(height: 16),
-              const RemainingTimeWidget(),
-              const SizedBox(height: 16),
-              ElevatedButton(onPressed: _notify, child: const Text("通知生成")),
-              if (notificationMessage.isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.all(20),
-                  child: Text(notificationMessage),
+        child: SafeArea(
+          child: SingleChildScrollView(
+            child: Column(
+              children: [
+                const SizedBox(height: 16),
+                const NotificationBar(),
+                const SizedBox(height: 16),
+                const RemainingTimeWidget(),
+                const SizedBox(height: 16),
+                ElevatedButton(
+                  onPressed: _showPageNotification,
+                  child: const Text('通知を生成'),
                 ),
-            ],
+                if (notificationMessage.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.all(20),
+                    child: Text(
+                      notificationMessage,
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+              ],
+            ),
           ),
         ),
       ),
@@ -163,7 +176,7 @@ class _HomePageState extends State<HomePage> {
   }
 }
 
-// ================= TASK PAGE =================
+// ================= TASK =================
 
 class TaskPage extends StatefulWidget {
   const TaskPage({super.key});
@@ -174,7 +187,6 @@ class TaskPage extends StatefulWidget {
 
 class _TaskPageState extends State<TaskPage> {
   List<Map<String, dynamic>> tasks = [];
-  bool show = false;
 
   @override
   void initState() {
@@ -185,12 +197,15 @@ class _TaskPageState extends State<TaskPage> {
   Future<void> _load() async {
     final prefs = await SharedPreferences.getInstance();
     final raw = prefs.getString('tasks');
+
     if (raw == null || raw.isEmpty) return;
 
-    final decoded = jsonDecode(raw) as List;
+    final decoded = jsonDecode(raw);
 
     setState(() {
-      tasks = decoded.map((e) => Map<String, dynamic>.from(e)).toList();
+      tasks = decoded
+          .map<Map<String, dynamic>>((e) => Map<String, dynamic>.from(e))
+          .toList();
     });
   }
 
@@ -198,35 +213,22 @@ class _TaskPageState extends State<TaskPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text("Tasks")),
-      body: Column(
-        children: [
-          const SizedBox(height: 20),
-          ElevatedButton(
-            onPressed: () => setState(() => show = !show),
-            child: const Text("Do it!"),
-          ),
-          const SizedBox(height: 10),
-          if (show)
-            Expanded(
-              child: ListView.builder(
-                itemCount: tasks.length,
-                itemBuilder: (context, i) {
-                  final t = tasks[i];
-                  final fixed = t['fixed'] == true;
+      body: ListView.builder(
+        itemCount: tasks.length,
+        itemBuilder: (context, index) {
+          final task = tasks[index];
+          final isFixed = task['fixed'] == true;
 
-                  return ListTile(
-                    leading: Icon(fixed ? Icons.repeat : Icons.task_alt),
-                    title: Text(t['name'] ?? ''),
-                    subtitle: Text(
-                      fixed
-                          ? "固定 / ${t['minutes']}分"
-                          : "${t['date']} / ${t['minutes']}分",
-                    ),
-                  );
-                },
-              ),
+          return ListTile(
+            leading: Icon(isFixed ? Icons.repeat : Icons.task_alt),
+            title: Text(task['name'] ?? ''),
+            subtitle: Text(
+              isFixed
+                  ? "固定 / ${task['minutes']}分"
+                  : "${task['date']} / ${task['minutes']}分",
             ),
-        ],
+          );
+        },
       ),
     );
   }
@@ -243,7 +245,7 @@ class FocusPage extends StatelessWidget {
   }
 }
 
-// ================= SETTINGS =================
+// ================= SETTINGS（統合完成版） =================
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
@@ -256,10 +258,34 @@ class _SettingsPageState extends State<SettingsPage> {
   final name = TextEditingController();
   final min = TextEditingController();
 
-  DateTime date = DateTime.now(); // ★ここが変更点（デフォルト今日）
+  DateTime date = DateTime.now();
   bool fixed = false;
 
   List<Map<String, dynamic>> tasks = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadTasks();
+  }
+
+  Future<void> _loadTasks() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString('tasks');
+
+    if (raw == null || raw.isEmpty) return;
+
+    final decoded = jsonDecode(raw) as List;
+
+    setState(() {
+      tasks = decoded.map((e) => Map<String, dynamic>.from(e)).toList();
+    });
+  }
+
+  Future<void> _saveTasks() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('tasks', jsonEncode(tasks));
+  }
 
   String fmt(DateTime d) =>
       "${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}";
@@ -267,23 +293,50 @@ class _SettingsPageState extends State<SettingsPage> {
   void addTask() async {
     if (name.text.isEmpty || min.text.isEmpty) return;
 
-    final prefs = await SharedPreferences.getInstance();
-
-    tasks.add({
-      "name": name.text,
-      "minutes": int.parse(min.text),
-      "date": fmt(date), // ★常に今日 or 選択日
-      "fixed": fixed,
-    });
-
-    await prefs.setString('tasks', jsonEncode(tasks));
-
     setState(() {
-      name.clear();
-      min.clear();
-      fixed = false;
-      date = DateTime.now();
+      tasks.add({
+        "name": name.text,
+        "minutes": int.parse(min.text),
+        "date": fmt(date),
+        "fixed": fixed,
+      });
     });
+
+    await _saveTasks();
+
+    name.clear();
+    min.clear();
+    fixed = false;
+    date = DateTime.now();
+  }
+
+  Future<void> _pickDate() async {
+    final d = await showDatePicker(
+      context: context,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2100),
+      initialDate: date,
+    );
+
+    if (d != null) setState(() => date = d);
+  }
+
+  Future<void> _clearTasks(BuildContext context) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('tasks');
+
+    setState(() => tasks.clear());
+
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text("タスクを削除しました")));
+  }
+
+  void _openConfession(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const ConfessionPage()),
+    );
   }
 
   @override
@@ -294,40 +347,122 @@ class _SettingsPageState extends State<SettingsPage> {
         padding: const EdgeInsets.all(20),
         child: Column(
           children: [
+            ElevatedButton.icon(
+              onPressed: () => _clearTasks(context),
+              icon: const Icon(Icons.delete_forever),
+              label: const Text("タスク全削除"),
+            ),
+
+            const SizedBox(height: 10),
+
+            ElevatedButton.icon(
+              onPressed: () => _openConfession(context),
+              icon: const Icon(Icons.church),
+              label: const Text("懺悔室へ"),
+            ),
+
+            const Divider(height: 30),
+
             TextField(
               controller: name,
               decoration: const InputDecoration(labelText: "タスク名"),
             ),
+
             TextField(
               controller: min,
-              decoration: const InputDecoration(labelText: "時間"),
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(labelText: "時間（分）"),
             ),
+
+            const SizedBox(height: 10),
 
             Row(
               children: [
                 Text(fmt(date)),
-                ElevatedButton(
-                  onPressed: () async {
-                    final d = await showDatePicker(
-                      context: context,
-                      firstDate: DateTime(2020),
-                      lastDate: DateTime(2100),
-                      initialDate: date,
-                    );
-                    if (d != null) setState(() => date = d);
-                  },
-                  child: const Text("日付"),
-                ),
+                const SizedBox(width: 10),
+                ElevatedButton(onPressed: _pickDate, child: const Text("日付選択")),
               ],
             ),
 
             SwitchListTile(
-              title: const Text("固定"),
+              title: const Text("固定タスク"),
               value: fixed,
               onChanged: (v) => setState(() => fixed = v),
             ),
 
-            ElevatedButton(onPressed: addTask, child: const Text("追加")),
+            ElevatedButton(onPressed: addTask, child: const Text("タスク追加")),
+
+            const SizedBox(height: 20),
+
+            ListView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: tasks.length,
+              itemBuilder: (context, i) {
+                final t = tasks[i];
+                final isFixed = t['fixed'] == true;
+
+                return ListTile(
+                  leading: Icon(isFixed ? Icons.repeat : Icons.task_alt),
+                  title: Text(t['name'] ?? ''),
+                  subtitle: Text(
+                    isFixed
+                        ? "固定 / ${t['minutes']}分"
+                        : "${t['date']} / ${t['minutes']}分",
+                  ),
+                );
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ================= 懺悔室 =================
+
+class ConfessionPage extends StatefulWidget {
+  const ConfessionPage({super.key});
+
+  @override
+  State<ConfessionPage> createState() => _ConfessionPageState();
+}
+
+class _ConfessionPageState extends State<ConfessionPage> {
+  final controller = TextEditingController();
+  String reply = "";
+
+  void confess() {
+    final text = controller.text;
+    if (text.isEmpty) return;
+
+    final responses = ["まあOK", "気づけたなら十分", "明日はもう少し楽になる", "それも経験", "悪くない選択"];
+
+    setState(() {
+      reply =
+          "「$text」\n→ ${responses[DateTime.now().second % responses.length]}";
+    });
+
+    controller.clear();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text("懺悔室")),
+      body: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          children: [
+            TextField(
+              controller: controller,
+              decoration: const InputDecoration(labelText: "懺悔を書く"),
+            ),
+            const SizedBox(height: 10),
+            ElevatedButton(onPressed: confess, child: const Text("送信")),
+            const SizedBox(height: 20),
+            if (reply.isNotEmpty) Text(reply),
           ],
         ),
       ),
