@@ -11,24 +11,29 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(debugShowCheckedModeBanner: false, home: HomePage());
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      home: const HomePage(),
+    );
   }
 }
 
 class HomePage extends StatefulWidget {
+  const HomePage({super.key});
+
   @override
   State<HomePage> createState() => _HomePageState();
 }
 
 class _HomePageState extends State<HomePage> {
   final List<Map<String, dynamic>> actions = [
-    {"name": "ƒAƒjƒ1˜b", "minutes": 24},
-    {"name": "U•à", "minutes": 30},
-    {"name": "‹ØƒgƒŒ", "minutes": 15},
-    {"name": "“Ç‘", "minutes": 20},
-    {"name": "áÒ‘z", "minutes": 10},
-    {"name": "‰f‰æ1–{", "minutes": 120},
-    {"name": "‰Û‘è", "minutes": 90},
+    {"name": "ï¿½Aï¿½jï¿½ï¿½1ï¿½b", "minutes": 24},
+    {"name": "ï¿½Uï¿½ï¿½", "minutes": 30},
+    {"name": "ï¿½Øƒgï¿½ï¿½", "minutes": 15},
+    {"name": "ï¿½Çï¿½", "minutes": 20},
+    {"name": "ï¿½Ò‘z", "minutes": 10},
+    {"name": "ï¿½fï¿½ï¿½1ï¿½{", "minutes": 120},
+    {"name": "ï¿½Û‘ï¿½", "minutes": 90},
   ];
 
   List<Map<String, dynamic>> userTasks = [];
@@ -56,7 +61,7 @@ class _HomePageState extends State<HomePage> {
   Future<void> saveTasks() async {
     final prefs = await SharedPreferences.getInstance();
 
-    prefs.setString("tasks", jsonEncode(userTasks));
+    await prefs.setString("tasks", jsonEncode(userTasks));
   }
 
   Future<void> loadTasks() async {
@@ -72,11 +77,17 @@ class _HomePageState extends State<HomePage> {
   }
 
   void addTask() {
-    final name = taskNameController.text;
+    final name = taskNameController.text.trim();
 
-    final minutes = taskMinutesController.text;
+    final minutes = taskMinutesController.text.trim();
 
     if (name.isEmpty || minutes.isEmpty) {
+      return;
+    }
+
+    final minuteValue = int.tryParse(minutes);
+
+    if (minuteValue == null) {
       return;
     }
 
@@ -88,7 +99,7 @@ class _HomePageState extends State<HomePage> {
     setState(() {
       userTasks.add({
         "name": name,
-        "minutes": int.parse(minutes),
+        "minutes": minuteValue,
         "date": today,
         "fixed": fixedTask,
       });
@@ -118,13 +129,19 @@ class _HomePageState extends State<HomePage> {
     if (sleepTimeController.text.isNotEmpty) {
       final parts = sleepTimeController.text.split(":");
 
-      final sleepHours = int.parse(parts[0]);
+      if (parts.length == 2) {
+        final sleepHours = int.tryParse(parts[0]) ?? 0;
 
-      final sleepMinutes = int.parse(parts[1]);
+        final sleepMinutes = int.tryParse(parts[1]) ?? 0;
 
-      final sleepTotal = sleepHours * 60 + sleepMinutes;
+        final sleepTotal = sleepHours * 60 + sleepMinutes;
 
-      remaining = sleepTotal - currentTotal;
+        remaining = sleepTotal - currentTotal;
+      }
+    }
+
+    if (remaining < 0) {
+      remaining = 0;
     }
 
     final remainingHours = remaining ~/ 60;
@@ -132,7 +149,7 @@ class _HomePageState extends State<HomePage> {
     final remainingMinutes = remaining % 60;
 
     setState(() {
-      remainingText = "c‚è ${remainingHours}ŠÔ ${remainingMinutes}•ª";
+      remainingText = "æ®‹ã‚Š ${remainingHours}æ™‚é–“ ${remainingMinutes}åˆ†";
     });
   }
 
@@ -150,15 +167,18 @@ class _HomePageState extends State<HomePage> {
     return Scaffold(
       backgroundColor: Colors.grey[200],
 
-      appBar: AppBar(title: const Text("c‚èŠÔƒAƒvƒŠ")),
+      appBar: AppBar(title: const Text("æ®‹ã‚Šæ™‚é–“ã‚¢ãƒ—ãƒª")),
 
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
 
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+
           children: [
             Text(
               todayDate,
+              textAlign: TextAlign.center,
               style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
             ),
 
@@ -166,8 +186,9 @@ class _HomePageState extends State<HomePage> {
 
             TextField(
               controller: sleepTimeController,
+
               decoration: const InputDecoration(
-                labelText: "Q‚éŠÔ (—á 23:00)",
+                labelText: "å¯ã‚‹æ™‚é–“(ä¾‹ 23:00)",
                 border: OutlineInputBorder(),
               ),
             ),
@@ -181,13 +202,17 @@ class _HomePageState extends State<HomePage> {
 
             const SizedBox(height: 20),
 
-            Text(remainingText, style: const TextStyle(fontSize: 22)),
+            Text(
+              remainingText,
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+            ),
 
-            const SizedBox(height: 20),
+            const SizedBox(height: 30),
 
             const Text(
-              "‚¨‚·‚·‚ß",
-              style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+              "ãŠã™ã™ã‚",
+              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
             ),
 
             const SizedBox(height: 10),
@@ -196,7 +221,7 @@ class _HomePageState extends State<HomePage> {
               return Card(
                 child: ListTile(
                   title: Text(action["name"]),
-                  trailing: Text("${action["minutes"]}•ª"),
+                  trailing: Text("${action["minutes"]}åˆ†"),
                 ),
               );
             }),
@@ -204,7 +229,7 @@ class _HomePageState extends State<HomePage> {
             const SizedBox(height: 30),
 
             const Text(
-              "ƒ^ƒXƒN“o˜^",
+              "ã‚¿ã‚¹ã‚¯ç™»éŒ²",
               style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
             ),
 
@@ -212,8 +237,9 @@ class _HomePageState extends State<HomePage> {
 
             TextField(
               controller: taskNameController,
+
               decoration: const InputDecoration(
-                labelText: "ƒ^ƒXƒN–¼",
+                labelText: "ã‚¿ã‚¹ã‚¯å",
                 border: OutlineInputBorder(),
               ),
             ),
@@ -222,26 +248,38 @@ class _HomePageState extends State<HomePage> {
 
             TextField(
               controller: taskMinutesController,
+
               keyboardType: TextInputType.number,
+
               decoration: const InputDecoration(
-                labelText: "‘z’èŠÔi•ªj",
+                labelText: "æƒ³å®šæ™‚é–“",
                 border: OutlineInputBorder(),
               ),
             ),
 
+            const SizedBox(height: 10),
+
             CheckboxListTile(
               value: fixedTask,
-              title: const Text("ŒÅ’èƒ^ƒXƒN"),
+              title: const Text("å›ºå®šã‚¿ã‚¹ã‚¯"),
+
               onChanged: (value) {
                 setState(() {
-                  fixedTask = value!;
+                  fixedTask = value ?? false;
                 });
               },
             ),
 
-            ElevatedButton(onPressed: addTask, child: const Text("ƒ^ƒXƒN’Ç‰Á")),
+            ElevatedButton(onPressed: addTask, child: const Text("ã‚¿ã‚¹ã‚¯è¿½åŠ ")),
 
-            const SizedBox(height: 20),
+            const SizedBox(height: 30),
+
+            const Text(
+              "ä»Šæ—¥ã®ã‚¿ã‚¹ã‚¯",
+              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+            ),
+
+            const SizedBox(height: 10),
 
             ...visibleTasks.asMap().entries.map((entry) {
               final index = entry.key;
@@ -263,15 +301,19 @@ class _HomePageState extends State<HomePage> {
                         ),
                       ),
 
-                      Text("${task["minutes"]}•ª"),
+                      const SizedBox(height: 5),
 
-                      Text(task["fixed"] ? "–ˆ“ú" : task["date"]),
+                      Text("${task["minutes"]}åˆ†"),
+
+                      Text(task["fixed"] ? "æ¯æ—¥" : task["date"]),
+
+                      const SizedBox(height: 10),
 
                       ElevatedButton(
                         onPressed: () {
                           deleteTask(index);
                         },
-                        child: const Text("íœ"),
+                        child: const Text("å‰Šé™¤"),
                       ),
                     ],
                   ),
